@@ -2,7 +2,7 @@
 
 Hackathon project for students, teachers, and admins: public course pages, academic workflows (attendance, assignments, exams), role-based dashboards, and an AI engine that turns learning data into reports.
 
-**Stack:** React + Tailwind (Vite) · FastAPI · SQLAlchemy · MySQL (XAMPP) · Azure AI Foundry Model Router (wired in later prompts)
+**Stack:** React + Tailwind (Vite) · FastAPI · SQLAlchemy · MySQL (XAMPP) · Azure AI Foundry Model Router
 
 ## Folder structure
 
@@ -19,8 +19,8 @@ Hackathon project for students, teachers, and admins: public course pages, acade
       main.py
       models/
       schemas/
-      routers/       auth, courses, classes, enrollments, teachers
-      services/
+      routers/       auth, courses, academic, ai, users, …
+      services/    including ai_service.py and ai_engine.py
     seed.py
     .env.example
   hooks/             Git hooks that strip Cursor co-author trailers
@@ -38,11 +38,12 @@ git config core.hooksPath hooks
 
 ## What this step added
 
-- Student dashboard: profile, my courses, assignment submit UI, attendance, grades, progress overview, AI recommendations placeholder
-- Teacher dashboard: my classes plus embedded mark-attendance, create/grade assignments, and exam marks UIs
-- My Progress (student-only): performance numbers from `GET /users/me/progress-overview`; weak subjects / tips / insights are Prompt 6 placeholders
-- Admin dashboard: list/create/deactivate students and teachers; links for courses, assignments, exams, reports; AI monitoring placeholder
-- `users.is_active` for deactivate (existing rows default to active)
+- Azure AI Foundry Model Router client (`ai_service.py`) using `AZURE_AI_ENDPOINT`, `AZURE_AI_KEY`, `AZURE_AI_MODEL`
+- AI Engine: performance analysis, at-risk detection, weak subjects, study recommendations, class insights
+- AI Feedback written to `assignment_submissions.ai_feedback` when a teacher grades
+- Exam Analysis rows written after marks are recorded
+- Insights stored in `ai_insights` for dashboards and Prompt 7 reports
+- Wired into My Progress, student assignment/exam views, and Admin AI Insights & Monitoring
 
 ## Assumptions
 
@@ -66,10 +67,10 @@ git config core.hooksPath hooks
 - Attendance **percent present** = `(present + late) / total records`. Absent is the remainder.
 - **Take Exams** is not a live quiz UI. Teachers (or admins) record marks per enrolled student.
 - Students cannot grade their own submissions. Teachers cannot mark attendance, grade, or record exam marks for another teacher's class.
-- `assignment_submissions.ai_feedback` and `exam_analysis` are stored but not written by these endpoints.
+- If Azure is missing, times out, or returns an error, the AI Engine writes a **rule-based fallback** and the page still loads.
 - **Deactivate** sets `users.is_active = false`. Deactivated accounts cannot log in. Admins cannot deactivate other admins or themselves.
 - **My Progress** is student-only. Teachers do not see that nav link.
-- Dashboard AI sections return empty lists with `ai_pending: true` until Prompt 6.
+- Student insights are reused for 6 hours unless **Refresh AI insights** is clicked. Class monitoring refresh only regenerates class-level rows.
 
 ## MySQL via XAMPP
 
@@ -93,8 +94,10 @@ Copy `backend/.env.example` to `backend/.env` (already created locally) and set:
 | `SECRET_KEY` | JWT signing secret |
 | `JWT_ALGORITHM` | JWT algorithm (default `HS256`) |
 | `ACCESS_TOKEN_EXPIRE_MINUTES` | Token lifetime (default `480` = 8 hours) |
-| `AZURE_AI_ENDPOINT` | Azure AI Foundry Model Router URL (later prompts) |
-| `AZURE_AI_API_KEY` | Azure key — never commit this |
+| `AZURE_AI_ENDPOINT` | Full Model Router / Responses URL from Azure AI Foundry |
+| `AZURE_AI_KEY` | Azure key — never commit this (`AZURE_AI_API_KEY` is accepted as an alias) |
+| `AZURE_AI_MODEL` | Deployment / router name (default `model-router`) |
+| `AZURE_AI_API_VERSION` | Query param appended if the URL has none (default `v1`; Foundry agent Responses also accepts `2025-11-15-preview`) |
 
 ## Run the backend
 
@@ -266,6 +269,40 @@ Authorization: Bearer <teacher-token>
 }
 ```
 
+## Azure AI Foundry (Model Router)
+
+1. In [Azure AI Foundry](https://ai.azure.com), open your project.
+2. Deploy **Model Router** (or an agent that exposes the OpenAI **Responses** protocol).
+3. Copy the **full POST URL** into `AZURE_AI_ENDPOINT` — typically a `.../protocols/openai/responses` path. Do not add `/openai/v1/responses` on top of that path.
+4. Copy the key into `AZURE_AI_KEY` (or `AZURE_AI_API_KEY`). Never commit `.env`.
+5. Set `AZURE_AI_MODEL` to the deployment / router name (often `model-router`).
+6. Set `AZURE_AI_API_VERSION=v1`. Foundry agent Responses endpoints reject older previews such as `2025-04-01-preview`. `2025-11-15-preview` also works.
+7. Restart uvicorn after changing `.env`. `get_settings()` is cached for the process lifetime.
+
+`GET /ai/status` returns `{ "configured": true|false }`. Each call has a 20s timeout. Timeouts, HTTP errors, and missing keys are logged and return `None` — pages always fall back to rule-based text and still load.
+
+### What each AI feature does
+
+| Feature | When it runs | Where it is stored / shown |
+| --- | --- | --- |
+| Performance Analysis | Student opens My Progress / dashboard (if stale) | `ai_insights.type=performance` → My Progress AI insights |
+| At-Risk Student Detection | Same, plus admin/teacher monitoring refresh | `ai_insights.type=at_risk` if attendance &lt; 70% or exam avg &lt; 60% (model explains why) |
+| Weak Subject Identification | Student insight refresh | `ai_insights.type=weak_subject` → My Progress Weak subjects |
+| Study Recommendations | Student insight refresh | `ai_insights.type=recommendation` → My Progress tips + dashboard AI recommendations |
+| AI Insights & Reports | Admin/teacher **Refresh insights** | `ai_insights.type=class_insight` (+ at-risk rows) → Admin monitoring |
+| AI Feedback | Teacher grades a submission | `assignment_submissions.ai_feedback` next to teacher feedback |
+| Exam Analysis | Teacher records exam marks | `exam_analysis.ai_summary` / `weak_topics` on grade views |
+
+Prompt 7 should **read `ai_insights`** instead of calling the model again.
+
+| Method | Path | Who |
+| --- | --- | --- |
+| GET | `/ai/status` | public |
+| GET | `/ai/me` | student |
+| POST | `/ai/refresh` | student (force regenerate) |
+| GET | `/ai/monitoring` | teacher (own classes), admin (all) |
+| POST | `/ai/monitoring/refresh` | teacher/admin |
+
 ## Dashboards
 
 | View | Path | Endpoints |
@@ -276,7 +313,7 @@ Authorization: Bearer <teacher-token>
 | Admin login | `/admin/login` | `POST /auth/admin/login` |
 | Admin dashboard | `/admin` | `GET/POST /admin/users`, `PATCH /admin/users/{id}` |
 
-`GET /users/me/dashboard` returns a student payload (courses, assignments with `my_submission`, attendance summaries, grades, progress overview, empty `ai_recommendations`) or a teacher payload (courses + classes). Admins have no user dashboard.
+`GET /users/me/dashboard` returns a student payload (courses, assignments with `my_submission`, attendance summaries, grades with exam analysis, progress overview, and stored `ai_recommendations`) or a teacher payload (courses + classes). Admins have no user dashboard.
 
 ### Example: deactivate a student
 
@@ -340,11 +377,11 @@ Check off boxes as later prompts implement them (schema + placeholder routes onl
 - [x] Assignments — Create / View
 - [x] Assignments — Submit Assignments
 - [x] Assignments — Due Dates
-- [ ] Assignments — AI Feedback
+- [x] Assignments — AI Feedback
 - [x] Exams & Grades — Take Exams
 - [x] Exams & Grades — View Grades
 - [x] Exams & Grades — Grade History
-- [ ] Exams & Grades — Exam Analysis
+- [x] Exams & Grades — Exam Analysis
 
 ### User Area (Student / Teacher)
 
@@ -375,11 +412,11 @@ Check off boxes as later prompts implement them (schema + placeholder routes onl
 
 ### AI Engine + Reports
 
-- [ ] AI Engine — Performance Analysis
-- [ ] AI Engine — At-Risk Student Detection
-- [ ] AI Engine — Weak Subject Identification
-- [ ] AI Engine — Study Recommendations
-- [ ] AI Engine — AI Insights & Reports
+- [x] AI Engine — Performance Analysis
+- [x] AI Engine — At-Risk Student Detection
+- [x] AI Engine — Weak Subject Identification
+- [x] AI Engine — Study Recommendations
+- [x] AI Engine — AI Insights & Reports
 - [ ] Reports & Insights — Student Performance
 - [ ] Reports & Insights — Class Performance
 - [ ] Reports & Insights — Comparative Reports
