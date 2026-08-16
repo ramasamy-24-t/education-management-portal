@@ -1,5 +1,9 @@
+from contextlib import asynccontextmanager
+
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+
+from app.db_bootstrap import ensure_schema
 
 from app.routers import (
     academic,
@@ -15,9 +19,17 @@ from app.routers import (
     faqs,
     health,
     teachers,
+    users,
 )
 
-app = FastAPI(title="Education Management Portal API", version="0.1.0")
+
+@asynccontextmanager
+async def lifespan(_app: FastAPI):
+    ensure_schema()
+    yield
+
+
+app = FastAPI(title="Education Management Portal API", version="0.1.0", lifespan=lifespan)
 
 app.add_middleware(
     CORSMiddleware,
@@ -40,6 +52,7 @@ app.include_router(academic.router)
 app.include_router(attendance.router)
 app.include_router(assignments.router)
 app.include_router(exams.router)
+app.include_router(users.router)
 
 
 @app.get("/")

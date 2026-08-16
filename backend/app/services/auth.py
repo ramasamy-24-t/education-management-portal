@@ -26,6 +26,8 @@ def authenticate(db: Session, payload: LoginRequest, *, allowed_roles: list[User
     user = db.query(User).filter(User.email == str(payload.email).lower()).first()
     if user is None or not verify_password(payload.password, user.password_hash):
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid email or password")
+    if not user.is_active:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Account is deactivated")
     if user.role not in allowed_roles:
         if user.role == UserRole.admin:
             raise HTTPException(
