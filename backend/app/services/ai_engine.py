@@ -607,7 +607,7 @@ def answer_assistant(
         return {"answer": "Ask a question about your courses, attendance, or grades.", "source": "error"}
 
     history_lines = []
-    for turn in (history or [])[-6]:
+    for turn in (history or [])[-6:]:
         role = str(turn.get("role") or "")
         content = str(turn.get("content") or "").strip()
         if role in ("user", "assistant") and content:

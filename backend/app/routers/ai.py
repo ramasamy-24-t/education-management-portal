@@ -4,6 +4,7 @@ from time import time
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
+import logging
 
 from app.database import get_db
 from app.deps import require_roles
@@ -13,6 +14,7 @@ from app.services.academic_access import load_class
 from app.services.academic_access import assert_can_manage_class
 
 router = APIRouter(prefix="/ai", tags=["ai"])
+logger = logging.getLogger(__name__)
 
 _ASSISTANT_HITS: dict[int, deque[float]] = defaultdict(deque)
 _ASSISTANT_LIMIT = 12
@@ -123,6 +125,7 @@ def assistant(
         history = [{"role": turn.role, "content": turn.content} for turn in payload.history]
         return ai_engine.answer_assistant(db, user, payload.question, history)
     except Exception:
+        logger.exception("Assistant failed for student_id=%s", student_id)
         return {
             "answer": "The assistant hit an error. Try a shorter question about your grades or attendance.",
             "source": "error",
