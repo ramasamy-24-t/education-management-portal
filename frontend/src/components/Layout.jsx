@@ -37,14 +37,14 @@ export default function Layout() {
               </>
             ) : null}
             {user?.role === "student" || user?.role === "teacher" ? (
-              <>
-                <NavLink to="/dashboard" className={linkClass}>
-                  Dashboard
-                </NavLink>
-                <NavLink to="/progress" className={linkClass}>
-                  My Progress
-                </NavLink>
-              </>
+              <NavLink to="/dashboard" className={linkClass}>
+                Dashboard
+              </NavLink>
+            ) : null}
+            {user?.role === "student" ? (
+              <NavLink to="/progress" className={linkClass}>
+                My Progress
+              </NavLink>
             ) : null}
             {user ? (
               <>

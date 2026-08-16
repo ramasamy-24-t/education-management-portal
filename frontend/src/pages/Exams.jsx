@@ -5,7 +5,7 @@ import { useAuth } from "../hooks/useAuth.js";
 
 const emptyExam = { title: "", date: "", max_marks: 100 };
 
-export default function Exams() {
+export default function Exams({ embedded = false }) {
   const { user, token } = useAuth();
   const canManage = user.role === "teacher" || user.role === "admin";
   const [classes, setClasses] = useState([]);
@@ -108,8 +108,8 @@ export default function Exams() {
 
   return (
     <section className="space-y-6">
-      <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Academic Flow</p>
-      <h1 className="text-3xl font-bold">Exams & Grades</h1>
+      {embedded ? null : <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Academic Flow</p>}
+      <h1 className={embedded ? "text-xl font-bold" : "text-3xl font-bold"}>Exams & Grades</h1>
       <p className="text-slate-600">
         {canManage
           ? "Create an exam, then record marks per student. “Take Exams” means entering results, not a live quiz."

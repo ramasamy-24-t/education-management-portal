@@ -7,7 +7,7 @@ function today() {
   return new Date().toISOString().slice(0, 10);
 }
 
-export default function Attendance() {
+export default function Attendance({ embedded = false }) {
   const { user, token } = useAuth();
   const canMark = user.role === "teacher" || user.role === "admin";
   const [classes, setClasses] = useState([]);
@@ -83,8 +83,8 @@ export default function Attendance() {
 
   return (
     <section className="space-y-6">
-      <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Academic Flow</p>
-      <h1 className="text-3xl font-bold">Attendance</h1>
+      {embedded ? null : <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Academic Flow</p>}
+      <h1 className={embedded ? "text-xl font-bold" : "text-3xl font-bold"}>Attendance</h1>
       <p className="text-slate-600">
         {canMark
           ? "Mark attendance per class and date. Late counts toward percent present."

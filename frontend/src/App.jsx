@@ -37,7 +37,7 @@ export default function App() {
         <Route
           path="/progress"
           element={
-            <ProtectedRoute roles={["student", "teacher"]}>
+            <ProtectedRoute roles={["student"]}>
               <MyProgress />
             </ProtectedRoute>
           }

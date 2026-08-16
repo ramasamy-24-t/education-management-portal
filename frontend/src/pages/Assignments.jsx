@@ -5,7 +5,7 @@ import { useAuth } from "../hooks/useAuth.js";
 
 const emptyAssignment = { title: "", description: "", due_date: "" };
 
-export default function Assignments() {
+export default function Assignments({ embedded = false }) {
   const { user, token } = useAuth();
   const canCreate = user.role === "teacher" || user.role === "admin";
   const [classes, setClasses] = useState([]);
@@ -111,8 +111,8 @@ export default function Assignments() {
 
   return (
     <section className="space-y-6">
-      <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Academic Flow</p>
-      <h1 className="text-3xl font-bold">Assignments</h1>
+      {embedded ? null : <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Academic Flow</p>}
+      <h1 className={embedded ? "text-xl font-bold" : "text-3xl font-bold"}>Assignments</h1>
       <p className="text-slate-600">
         {canCreate
           ? "Create assignments with due dates and grade student submissions. The ai_feedback column is left for Prompt 6."
