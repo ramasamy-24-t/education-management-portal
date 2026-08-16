@@ -46,6 +46,19 @@ export default function Layout() {
                 </NavLink>
               </>
             ) : null}
+            {user ? (
+              <>
+                <NavLink to="/attendance" className={linkClass}>
+                  Attendance
+                </NavLink>
+                <NavLink to="/assignments" className={linkClass}>
+                  Assignments
+                </NavLink>
+                <NavLink to="/exams" className={linkClass}>
+                  Exams
+                </NavLink>
+              </>
+            ) : null}
             {user?.role === "teacher" || user?.role === "admin" ? (
               <NavLink to="/manage/courses" className={linkClass}>
                 Manage Courses

@@ -12,6 +12,9 @@ import AdminLogin from "./pages/AdminLogin.jsx";
 import AdminDashboard from "./pages/AdminDashboard.jsx";
 import PerformanceReports from "./pages/PerformanceReports.jsx";
 import ManageCourses from "./pages/ManageCourses.jsx";
+import Attendance from "./pages/Attendance.jsx";
+import Assignments from "./pages/Assignments.jsx";
+import Exams from "./pages/Exams.jsx";
 
 export default function App() {
   return (
@@ -44,6 +47,30 @@ export default function App() {
           element={
             <ProtectedRoute roles={["teacher", "admin"]}>
               <ManageCourses />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/attendance"
+          element={
+            <ProtectedRoute roles={["student", "teacher", "admin"]}>
+              <Attendance />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/assignments"
+          element={
+            <ProtectedRoute roles={["student", "teacher", "admin"]}>
+              <Assignments />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/exams"
+          element={
+            <ProtectedRoute roles={["student", "teacher", "admin"]}>
+              <Exams />
             </ProtectedRoute>
           }
         />

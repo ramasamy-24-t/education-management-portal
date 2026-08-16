@@ -60,8 +60,22 @@ export default function UserDashboard() {
         )}
       </div>
 
+      <div className="grid gap-3 sm:grid-cols-3">
+        <Link to="/attendance" className="rounded-xl border border-slate-200 bg-white p-4 hover:border-slate-300">
+          <h3 className="font-semibold">Attendance</h3>
+          <p className="mt-1 text-sm text-slate-600">View or mark attendance and see percent present.</p>
+        </Link>
+        <Link to="/assignments" className="rounded-xl border border-slate-200 bg-white p-4 hover:border-slate-300">
+          <h3 className="font-semibold">My assignments</h3>
+          <p className="mt-1 text-sm text-slate-600">Due dates, submissions, and teacher feedback.</p>
+        </Link>
+        <Link to="/exams" className="rounded-xl border border-slate-200 bg-white p-4 hover:border-slate-300">
+          <h3 className="font-semibold">Grades</h3>
+          <p className="mt-1 text-sm text-slate-600">Exam marks and grade history.</p>
+        </Link>
+      </div>
       <div className="rounded-xl border border-dashed border-slate-300 p-5 text-sm text-slate-600">
-        Coming in later prompts: My Assignments, Attendance, Grades, AI Recommendations, Progress Overview.
+        Coming in later prompts: AI Recommendations, Progress Overview.
       </div>
     </section>
   );
