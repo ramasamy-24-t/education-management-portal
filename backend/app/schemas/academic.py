@@ -133,3 +133,5 @@ class GradeOut(BaseModel):
     max_marks: float
     marks_obtained: float
     percent: float
+    ai_summary: str | None = None
+    weak_topics: str | None = None

@@ -2,7 +2,7 @@ from fastapi import HTTPException, status
 from sqlalchemy.orm import Session, joinedload
 
 from app.models.course import ClassGroup
-from app.models.exam import Exam, Grade
+from app.models.exam import Exam, ExamAnalysis, Grade
 from app.models.user import User, UserRole
 from app.schemas.academic import ExamCreate, ExamGradesRequest, ExamOut, GradeOut
 from app.services.academic_access import (
@@ -28,7 +28,16 @@ def _exam_out(exam: Exam) -> ExamOut:
     )
 
 
-def _grade_out(row: Grade) -> GradeOut:
+def _analysis_map(db: Session, exam_id: int | None = None, student_id: int | None = None) -> dict[tuple[int, int], ExamAnalysis]:
+    query = db.query(ExamAnalysis)
+    if exam_id:
+        query = query.filter(ExamAnalysis.exam_id == exam_id)
+    if student_id:
+        query = query.filter(ExamAnalysis.student_id == student_id)
+    return {(row.exam_id, row.student_id): row for row in query.all()}
+
+
+def _grade_out(row: Grade, analysis: ExamAnalysis | None = None) -> GradeOut:
     exam = row.exam
     class_group = exam.class_group if exam else None
     course = class_group.course if class_group else None
@@ -46,6 +55,8 @@ def _grade_out(row: Grade) -> GradeOut:
         max_marks=max_marks,
         marks_obtained=row.marks_obtained,
         percent=percent,
+        ai_summary=analysis.ai_summary if analysis else None,
+        weak_topics=analysis.weak_topics if analysis else None,
     )
 
 
@@ -135,7 +146,14 @@ def record_grades(db: Session, exam_id: int, payload: ExamGradesRequest, actor: 
         .filter(Grade.id.in_(ids))
         .all()
     )
-    return [_grade_out(row) for row in rows]
+    try:
+        from app.services import ai_engine
+
+        ai_engine.generate_exam_analyses(db, exam, rows)
+    except Exception:
+        pass
+    analyses = _analysis_map(db, exam_id=exam.id)
+    return [_grade_out(row, analyses.get((row.exam_id, row.student_id))) for row in rows]
 
 
 def list_exam_grades(db: Session, exam_id: int, actor: User) -> list[GradeOut]:
@@ -152,7 +170,9 @@ def list_exam_grades(db: Session, exam_id: int, actor: User) -> list[GradeOut]:
         query = query.filter(Grade.student_id == actor.id)
     else:
         assert_can_manage_class(load_class(db, exam.class_id), actor)
-    return [_grade_out(row) for row in query.order_by(Grade.student_id.asc()).all()]
+    rows = query.order_by(Grade.student_id.asc()).all()
+    analyses = _analysis_map(db, exam_id=exam.id)
+    return [_grade_out(row, analyses.get((row.exam_id, row.student_id))) for row in rows]
 
 
 def my_grade_history(db: Session, student: User) -> list[GradeOut]:
@@ -167,4 +187,9 @@ def my_grade_history(db: Session, student: User) -> list[GradeOut]:
         .filter(Grade.student_id == student.id)
         .all()
     )
-    return sorted([_grade_out(row) for row in rows], key=lambda item: item.date, reverse=True)
+    analyses = _analysis_map(db, student_id=student.id)
+    return sorted(
+        [_grade_out(row, analyses.get((row.exam_id, row.student_id))) for row in rows],
+        key=lambda item: item.date,
+        reverse=True,
+    )

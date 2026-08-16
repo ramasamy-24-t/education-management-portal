@@ -159,6 +159,13 @@ def grade_submission(db: Session, submission_id: int, payload: SubmissionGrade, 
     row.feedback = payload.feedback.strip()
     db.commit()
     db.refresh(row)
+    try:
+        from app.services import ai_engine
+
+        ai_engine.generate_assignment_feedback(db, row)
+        db.refresh(row)
+    except Exception:
+        pass
     return _submission_out(row)
 
 

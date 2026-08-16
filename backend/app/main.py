@@ -7,6 +7,7 @@ from app.db_bootstrap import ensure_schema
 
 from app.routers import (
     academic,
+    ai,
     announcements,
     assignments,
     attendance,
@@ -53,6 +54,7 @@ app.include_router(attendance.router)
 app.include_router(assignments.router)
 app.include_router(exams.router)
 app.include_router(users.router)
+app.include_router(ai.router)
 
 
 @app.get("/")

@@ -1,5 +1,7 @@
 """Smoke checks for dashboards and admin user management."""
 
+from uuid import uuid4
+
 from fastapi.testclient import TestClient
 
 from app.main import app
@@ -28,11 +30,12 @@ def main() -> None:
     body = student_dash.json()
     assert body["profile"]["role"] == "student"
     assert "progress_overview" in body
-    assert body["ai_recommendations"] == []
+    assert isinstance(body["ai_recommendations"], list)
 
     progress = client.get("/users/me/progress-overview", headers=auth(student))
     assert progress.status_code == 200, progress.text
-    assert progress.json()["ai_pending"] is True
+    overview = progress.json()
+    assert "weak_subjects" in overview and "improvement_tips" in overview and "ai_insights" in overview
 
     teacher_progress = client.get("/users/me/progress-overview", headers=auth(teacher))
     assert teacher_progress.status_code == 403
@@ -41,12 +44,13 @@ def main() -> None:
     assert teacher_dash.status_code == 200
     assert teacher_dash.json()["classes"]
 
+    email = f"temp.student.{uuid4().hex[:8]}@edu.local"
     created = client.post(
         "/admin/users",
         headers=auth(admin),
         json={
             "name": "Temp Student",
-            "email": "temp.student@edu.local",
+            "email": email,
             "password": "password123",
             "role": "student",
         },
@@ -64,7 +68,7 @@ def main() -> None:
     deactivated = client.patch(f"/admin/users/{user_id}", headers=auth(admin), json={"is_active": False})
     assert deactivated.status_code == 200 and deactivated.json()["is_active"] is False
 
-    blocked = client.post("/auth/login", json={"email": "temp.student@edu.local", "password": "password123"})
+    blocked = client.post("/auth/login", json={"email": email, "password": "password123"})
     assert blocked.status_code == 403
 
     client.patch(f"/admin/users/{user_id}", headers=auth(admin), json={"is_active": True})

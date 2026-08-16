@@ -48,6 +48,12 @@ def student_progress(db: Session, student: User) -> ProgressOverviewOut:
     graded = [row.grade for row in submissions if row.grade is not None]
     completion = round((len(submitted_ids) / len(assignments)) * 100, 1) if assignments else 0.0
 
+    from app.services import ai_engine
+
+    try:
+        texts = ai_engine.list_student_insight_texts(db, student, refresh=True)
+    except Exception:
+        texts = {"weak_subjects": [], "improvement_tips": [], "ai_insights": [], "ai_recommendations": []}
     return ProgressOverviewOut(
         attendance_percent=attendance_percent,
         average_exam_percent=average_exam,
@@ -56,10 +62,10 @@ def student_progress(db: Session, student: User) -> ProgressOverviewOut:
         assignment_completion_percent=completion,
         average_assignment_grade=round(sum(graded) / len(graded), 1) if graded else None,
         course_count=len({item.course_id for item in classes}),
-        weak_subjects=[],
-        improvement_tips=[],
-        ai_insights=[],
-        ai_pending=True,
+        weak_subjects=texts["weak_subjects"],
+        improvement_tips=texts["improvement_tips"],
+        ai_insights=texts["ai_insights"],
+        ai_pending=not bool(texts["ai_insights"] or texts["weak_subjects"] or texts["improvement_tips"]),
     )
 
 
@@ -72,6 +78,7 @@ def student_dashboard(db: Session, student: User) -> StudentDashboardOut:
     attendance = []
     for class_group in classes:
         attendance.extend(attendance_summary(db, student, class_id=class_group.id))
+    overview = student_progress(db, student)
     return StudentDashboardOut(
         profile=UserPublic.model_validate(student),
         courses=[course for course in list_courses(db, student_id=student.id) if course.enrolled],
@@ -81,8 +88,8 @@ def student_dashboard(db: Session, student: User) -> StudentDashboardOut:
         ],
         attendance=attendance,
         grades=my_grade_history(db, student),
-        progress_overview=student_progress(db, student),
-        ai_recommendations=[],
+        progress_overview=overview,
+        ai_recommendations=overview.improvement_tips,
     )
 
 

@@ -113,7 +113,8 @@ def main() -> None:
         headers=auth(teacher),
         json={"grade": 88, "feedback": "Good work"},
     )
-    assert graded.status_code == 200 and graded.json()["ai_feedback"] is None
+    assert graded.status_code == 200, graded.text
+    assert graded.json()["ai_feedback"]
 
     exam = client.post(
         "/exams",
@@ -129,6 +130,8 @@ def main() -> None:
         json={"records": [{"student_id": student_id, "marks_obtained": 41}]},
     )
     assert recorded.status_code == 200, recorded.text
+    assert recorded.json()[0]["ai_summary"]
+    assert recorded.json()[0]["weak_topics"]
 
     history = client.get("/grades/me", headers=auth(student))
     assert history.status_code == 200

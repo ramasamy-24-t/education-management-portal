@@ -23,7 +23,15 @@ class Settings(BaseSettings):
     jwt_algorithm: str = "HS256"
     access_token_expire_minutes: int = 480
     azure_ai_endpoint: str = ""
+    azure_ai_key: str = ""
     azure_ai_api_key: str = ""
+    azure_ai_model: str = "model-router"
+    azure_ai_api_version: str = "v1"
+    azure_ai_timeout_seconds: float = 20
+
+    @property
+    def azure_key(self) -> str:
+        return self.azure_ai_key or self.azure_ai_api_key
 
     def _auth(self) -> str:
         user = quote_plus(self.db_user)
