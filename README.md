@@ -38,11 +38,10 @@ git config core.hooksPath hooks
 
 ## What this step added
 
-- Public Home Page: hero, announcements, featured (top-rated) courses, top teachers, rotating study tips, CTA to Courses
-- Courses Page: search, category filter, listing grid, top-rated sidebar
-- Course Details: info, syllabus, teacher, schedule, Enroll Now (login prompt if anonymous)
-- Contact Page: contact info, form → `POST /contact`, FAQs from the database, email-only support note
-- Public APIs: `GET /announcements`, `GET /faqs`, `GET /contact/info`, `POST /contact`
+- Attendance: teacher marks per class/date; students view their own records; summary % present (late counts as present)
+- Assignments: teacher create/view + due dates; student submit; teacher grade + manual feedback (`ai_feedback` left for Prompt 6)
+- Exams & Grades: teacher creates exam and records marks; student views grades and grade history (`exam_analysis` left for Prompt 6)
+- Academic pages at `/attendance`, `/assignments`, `/exams` for student, teacher, and admin
 
 ## Assumptions
 
@@ -63,6 +62,10 @@ git config core.hooksPath hooks
 - **Support** on Contact is email-only (`support@edu.local`). There is no ticket system, chat, or SLA.
 - Contact info is a static payload from `GET /contact/info` (not a CMS table).
 - Featured courses on Home are the same as **top-rated** courses (`GET /courses/top-rated`).
+- Attendance **percent present** = `(present + late) / total records`. Absent is the remainder.
+- **Take Exams** is not a live quiz UI. Teachers (or admins) record marks per enrolled student.
+- Students cannot grade their own submissions. Teachers cannot mark attendance, grade, or record exam marks for another teacher's class.
+- `assignment_submissions.ai_feedback` and `exam_analysis` are stored but not written by these endpoints.
 
 ## MySQL via XAMPP
 
@@ -224,9 +227,44 @@ Content-Type: application/json
 
 Anonymous visitors can submit the form. Messages are stored in `contact_messages`. Enroll Now on Course Details shows an inline login prompt when the visitor is not signed in; after login they return to the course.
 
+## Academic Flow (classes)
+
+All academic records hang off a **class** (`classes.id`), which belongs to a course. `GET /academic/classes` returns the classes the current user can see (teacher: own courses; student: enrolled courses; admin: all). `GET /academic/classes/{id}/students` is the enrolled roster used when marking attendance or recording exam marks.
+
+| Method | Path | Who |
+| --- | --- | --- |
+| GET | `/academic/classes` | signed-in user |
+| GET | `/academic/classes/{id}/students` | class teacher, enrolled student, or admin |
+| POST | `/attendance/mark` | owner teacher or admin |
+| GET | `/attendance` | student: own rows; teacher/admin: require `class_id` |
+| GET | `/attendance/summary?class_id=` | student: own %; teacher/admin: whole class |
+| POST | `/assignments` | owner teacher or admin |
+| GET | `/assignments?class_id=` | class members |
+| POST | `/assignments/{id}/submissions` | enrolled student (self only) |
+| GET | `/assignments/{id}/submissions` | student: own; teacher/admin: all |
+| PATCH | `/submissions/{id}` | owner teacher or admin (`grade`, `feedback` only) |
+| GET | `/submissions/me` | student |
+| POST | `/exams` | owner teacher or admin |
+| GET | `/exams?class_id=` | class members |
+| PUT | `/exams/{id}/grades` | owner teacher or admin |
+| GET | `/exams/{id}/grades` | student: own; teacher/admin: all |
+| GET | `/grades/me` | student (grade history) |
+
+### Example: mark attendance
+
+```http
+POST /attendance/mark
+Authorization: Bearer <teacher-token>
+{
+  "class_id": 1,
+  "date": "2026-08-16",
+  "records": [{"student_id": 4, "status": "present"}]
+}
+```
+
 ## Frontend routes
 
-Protected: `/dashboard` and `/progress` (student/teacher), `/manage/courses` (teacher/admin), `/admin` (admin), `/reports` (any signed-in role).
+Protected: `/dashboard` and `/progress` (student/teacher), `/attendance` `/assignments` `/exams` (student/teacher/admin), `/manage/courses` (teacher/admin), `/admin` (admin), `/reports` (any signed-in role).
 
 ## Placeholder routes
 
@@ -272,16 +310,16 @@ Check off boxes as later prompts implement them (schema + placeholder routes onl
 
 ### Academic Flow
 
-- [ ] Attendance — Mark Attendance
-- [ ] Attendance — View Attendance
-- [ ] Attendance — Attendance Summary
-- [ ] Assignments — Create / View
-- [ ] Assignments — Submit Assignments
-- [ ] Assignments — Due Dates
+- [x] Attendance — Mark Attendance
+- [x] Attendance — View Attendance
+- [x] Attendance — Attendance Summary
+- [x] Assignments — Create / View
+- [x] Assignments — Submit Assignments
+- [x] Assignments — Due Dates
 - [ ] Assignments — AI Feedback
-- [ ] Exams & Grades — Take Exams
-- [ ] Exams & Grades — View Grades
-- [ ] Exams & Grades — Grade History
+- [x] Exams & Grades — Take Exams
+- [x] Exams & Grades — View Grades
+- [x] Exams & Grades — Grade History
 - [ ] Exams & Grades — Exam Analysis
 
 ### User Area (Student / Teacher)
@@ -290,9 +328,9 @@ Check off boxes as later prompts implement them (schema + placeholder routes onl
 - [x] User Login / Register — Role Selection (Student / Teacher)
 - [x] User Dashboard — Profile
 - [x] User Dashboard — My Courses
-- [ ] User Dashboard — My Assignments
-- [ ] User Dashboard — Attendance
-- [ ] User Dashboard — Grades
+- [x] User Dashboard — My Assignments
+- [x] User Dashboard — Attendance
+- [x] User Dashboard — Grades
 - [ ] User Dashboard — AI Recommendations
 - [ ] User Dashboard — Progress Overview
 - [ ] My Progress — Performance Overview
@@ -306,8 +344,8 @@ Check off boxes as later prompts implement them (schema + placeholder routes onl
 - [ ] Admin Dashboard — Manage Students
 - [ ] Admin Dashboard — Manage Teachers
 - [x] Admin Dashboard — Manage Courses & Classes
-- [ ] Admin Dashboard — Manage Assignments
-- [ ] Admin Dashboard — Manage Exams & Grades
+- [x] Admin Dashboard — Manage Assignments
+- [x] Admin Dashboard — Manage Exams & Grades
 - [ ] Admin Dashboard — View Reports & Analytics
 - [ ] Admin Dashboard — AI Insights & Monitoring
 
