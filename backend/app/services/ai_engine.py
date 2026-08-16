@@ -526,6 +526,48 @@ def refresh_monitoring(db: Session, actor: User) -> int:
     return len(classes)
 
 
+def generate_practice_questions(db: Session, student: User, subject: str) -> dict:
+    """Fresh 3–4 questions each call. Not stored — regenerate on click."""
+    cleaned = (subject or "").strip()
+    if not cleaned:
+        return {"subject": "", "questions": [], "source": "error", "detail": "Pick a weak subject first."}
+
+    topics = [
+        row.weak_topics.strip()
+        for row in db.query(ExamAnalysis).filter(ExamAnalysis.student_id == student.id).all()
+        if row.weak_topics and row.weak_topics.strip()
+    ]
+    topic_text = "; ".join(topics) if topics else "none recorded"
+
+    parsed = ai_service.complete_json(
+        "Write 4 short practice questions for a student who is weak in this subject. "
+        "No answers. Return JSON with key questions (array of 3 or 4 strings).\n"
+        f"Subject: {cleaned}\n"
+        f"Exam analysis weak topics: {topic_text}"
+    )
+    questions: list[str] = []
+    if isinstance(parsed, dict) and isinstance(parsed.get("questions"), list):
+        questions = [str(item).strip() for item in parsed["questions"] if str(item).strip()]
+    elif isinstance(parsed, list):
+        questions = [str(item).strip() for item in parsed if str(item).strip()]
+    questions = questions[:4]
+    if len(questions) >= 3:
+        return {"subject": cleaned, "questions": questions, "source": "model"}
+
+    fallback = [
+        f"Explain the core idea of {cleaned} in two sentences.",
+        f"Work one short example using: {topics[0] if topics else cleaned}.",
+        f"Name two common mistakes in {cleaned} and how to avoid them.",
+        f"Write a 5-minute drill question on {cleaned}.",
+    ]
+    return {
+        "subject": cleaned,
+        "questions": fallback,
+        "source": "fallback",
+        "detail": "AI was unavailable, so these are local practice prompts. Retry for model-generated questions.",
+    }
+
+
 def _unique(items: list[str]) -> list[str]:
     seen: set[str] = set()
     result: list[str] = []

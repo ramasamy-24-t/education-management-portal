@@ -80,7 +80,7 @@ npm run dev
 ### User Dashboards
 - **Student:** Profile, enrolled courses, assignments with submissions, attendance, grades, AI recommendations, progress overview
 - **Teacher:** Profile, owned courses and classes, links to academic management
-- **My Progress (student):** Performance metrics, weak subjects, improvement tips, AI insights, at-risk trend
+- **My Progress (student):** Performance metrics, weak subjects with generate-practice-questions, improvement tips, AI insights, at-risk trend
 
 ### Admin Dashboard
 - **User Management:** List/create/deactivate students and teachers
@@ -174,6 +174,7 @@ Copy `backend/.env.example` to `backend/.env`:
 | GET | `/ai/status` | Public |
 | GET | `/ai/me` | Student |
 | POST | `/ai/refresh` | Student |
+| POST | `/ai/practice-questions/{student_id}` | Student (self only) |
 | GET | `/ai/monitoring` | Teacher, Admin |
 | POST | `/ai/monitoring/refresh` | Teacher, Admin |
 | GET | `/reports/me` | Student |
@@ -300,6 +301,7 @@ Copy `backend/.env.example` to `backend/.env`:
 
 ### Innovation Add-ons
 - [x] At-risk **risk trend** — improving / worsening / stable (or “not enough data yet”) on My Progress and Admin AI Insights & Monitoring
+- [x] **Generate practice questions** — My Progress, per weak subject; 3–4 questions from the Model Router using that subject + `exam_analysis.weak_topics`. Questions are **not persisted**; each click (or retry) generates a fresh set.
 
 ---
 
@@ -326,6 +328,8 @@ Copy `backend/.env.example` to `backend/.env`:
 10. **CORS locked to localhost:5173** — Change `main.py` for production deployment.
 
 11. **Risk trend uses 3-day windows, not 2 weeks** — Seed attendance only covers 5 consecutive days (`today-1` through `today-5`) and seed exams sit 10 days back, so a 14-day vs prior-14-day split would always be empty. Trend compares **the last 3 calendar days** with **the 3 days before that**. Both windows need at least one attendance record; otherwise the UI shows “not enough data yet” and does not guess. Demo exam dates usually fall outside both windows, so the first demo trend is attendance-driven.
+
+12. **Practice questions are not saved** — `POST /ai/practice-questions/{student_id}` generates 3–4 questions on each click from the weak subject plus `exam_analysis.weak_topics`. Refreshing the page clears them.
 
 ---
 

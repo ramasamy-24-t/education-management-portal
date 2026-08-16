@@ -1,4 +1,5 @@
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Depends, HTTPException, Query, status
+from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 
 from app.database import get_db
@@ -9,6 +10,10 @@ from app.services.academic_access import load_class
 from app.services.academic_access import assert_can_manage_class
 
 router = APIRouter(prefix="/ai", tags=["ai"])
+
+
+class PracticeQuestionsRequest(BaseModel):
+    subject: str = Field(min_length=1, max_length=300)
 
 
 @router.get("/status")
@@ -44,3 +49,26 @@ def refresh_monitoring(
         return {"refreshed_classes": 1}
     count = ai_engine.refresh_monitoring(db, user)
     return {"refreshed_classes": count}
+
+
+@router.post("/practice-questions/{student_id}")
+def practice_questions(
+    student_id: int,
+    payload: PracticeQuestionsRequest,
+    db: Session = Depends(get_db),
+    user: User = Depends(require_roles(UserRole.student)),
+):
+    if user.id != student_id:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="You can only generate practice questions for yourself",
+        )
+    try:
+        return ai_engine.generate_practice_questions(db, user, payload.subject)
+    except Exception:
+        return {
+            "subject": payload.subject.strip(),
+            "questions": [],
+            "source": "error",
+            "detail": "Could not generate questions. Try again.",
+        }

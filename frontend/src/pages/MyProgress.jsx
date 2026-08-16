@@ -4,7 +4,7 @@ import RiskTrend from "../components/RiskTrend.jsx";
 import { useAuth } from "../hooks/useAuth.js";
 
 export default function MyProgress() {
-  const { token } = useAuth();
+  const { token, user } = useAuth();
   const [data, setData] = useState(null);
   const [error, setError] = useState("");
   const [pending, setPending] = useState(false);
@@ -80,7 +80,11 @@ export default function MyProgress() {
             <RiskTrend trend={data.risk_trend} reason={data.risk_trend_reason} />
           </div>
 
-          <ListCard title="Weak subjects" items={data.weak_subjects} empty="No weak subjects stored yet." />
+          <WeakSubjectsCard
+            items={data.weak_subjects}
+            studentId={user.id}
+            token={token}
+          />
           <ListCard title="Improvement tips" items={data.improvement_tips} empty="No study recommendations stored yet." />
           <ListCard title="AI insights" items={data.ai_insights} empty="No performance or at-risk insights stored yet." />
         </>
@@ -94,6 +98,110 @@ function Item({ label, value }) {
     <div className="rounded-md bg-slate-50 px-3 py-2">
       <dt className="text-slate-500">{label}</dt>
       <dd className="font-medium">{value}</dd>
+    </div>
+  );
+}
+
+function WeakSubjectsCard({ items, studentId, token }) {
+  const [bySubject, setBySubject] = useState({});
+
+  async function generate(subject) {
+    setBySubject((prev) => ({
+      ...prev,
+      [subject]: { ...(prev[subject] || {}), status: "loading", error: "" },
+    }));
+    try {
+      const payload = await api(`/ai/practice-questions/${studentId}`, {
+        method: "POST",
+        token,
+        body: { subject },
+      });
+      const questions = payload.questions || [];
+      const failed = payload.source === "error" || questions.length === 0;
+      setBySubject((prev) => ({
+        ...prev,
+        [subject]: {
+          status: failed ? "error" : "ok",
+          questions,
+          source: payload.source,
+          error: failed ? payload.detail || "Could not generate questions." : "",
+        },
+      }));
+    } catch (err) {
+      setBySubject((prev) => ({
+        ...prev,
+        [subject]: {
+          status: "error",
+          questions: prev[subject]?.questions || [],
+          source: "error",
+          error: err.message || "Could not generate questions.",
+        },
+      }));
+    }
+  }
+
+  return (
+    <div className="rounded-xl border border-violet-200 bg-violet-50 p-5">
+      <h2 className="text-lg font-semibold text-violet-950">Weak subjects</h2>
+      {items?.length ? (
+        <ul className="mt-3 space-y-3">
+          {items.map((subject) => {
+            const state = bySubject[subject] || { status: "idle", questions: [] };
+            const label =
+              state.status === "loading"
+                ? "Generating…"
+                : state.questions?.length
+                  ? "Regenerate"
+                  : "Generate practice questions";
+            return (
+              <li key={subject} className="rounded-lg border border-violet-200 bg-white p-3">
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <p className="font-medium text-violet-950">{subject}</p>
+                  <button
+                    type="button"
+                    onClick={() => generate(subject)}
+                    disabled={state.status === "loading"}
+                    className="rounded-md bg-slate-900 px-3 py-1.5 text-sm font-medium text-white disabled:opacity-60"
+                  >
+                    {label}
+                  </button>
+                </div>
+                {state.status === "loading" ? (
+                  <p className="mt-2 text-sm text-slate-600">Generating practice questions…</p>
+                ) : null}
+                {state.status === "error" ? (
+                  <div className="mt-2 rounded-md bg-red-50 px-3 py-2 text-sm text-red-700">
+                    <p>{state.error}</p>
+                    <button
+                      type="button"
+                      onClick={() => generate(subject)}
+                      className="mt-2 rounded-md border border-red-300 px-2 py-1 text-xs font-medium"
+                    >
+                      Retry
+                    </button>
+                  </div>
+                ) : null}
+                {state.questions?.length && state.status !== "loading" ? (
+                  <div className="mt-2">
+                    {state.source === "fallback" ? (
+                      <p className="mb-1 text-xs text-amber-800">
+                        Local prompts (AI unavailable). Retry for model-generated questions.
+                      </p>
+                    ) : null}
+                    <ol className="list-decimal space-y-1 pl-5 text-sm text-slate-800">
+                      {state.questions.map((question) => (
+                        <li key={question}>{question}</li>
+                      ))}
+                    </ol>
+                  </div>
+                ) : null}
+              </li>
+            );
+          })}
+        </ul>
+      ) : (
+        <p className="mt-2 text-sm text-violet-900">No weak subjects stored yet.</p>
+      )}
     </div>
   );
 }

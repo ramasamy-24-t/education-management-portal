@@ -63,6 +63,33 @@ def main() -> None:
         sample = ai_service.complete("Reply with the single word OK")
         assert sample is None or "OK" in sample.upper()
 
+    me = client.get("/auth/me", headers=auth(student))
+    assert me.status_code == 200
+    student_id = me.json()["id"]
+    practice = client.post(
+        f"/ai/practice-questions/{student_id}",
+        headers=auth(student),
+        json={"subject": "Linear Algebra"},
+    )
+    assert practice.status_code == 200, practice.text
+    practice_body = practice.json()
+    assert isinstance(practice_body.get("questions"), list)
+    assert practice_body.get("source") in ("model", "fallback", "error")
+
+    other = client.post(
+        "/ai/practice-questions/99999",
+        headers=auth(student),
+        json={"subject": "Linear Algebra"},
+    )
+    assert other.status_code == 403
+
+    admin_denied = client.post(
+        f"/ai/practice-questions/{student_id}",
+        headers=auth(admin),
+        json={"subject": "Linear Algebra"},
+    )
+    assert admin_denied.status_code == 403
+
     print("smoke_ai: all checks passed")
 
 
