@@ -1,5 +1,6 @@
 import { Navigate, Route, Routes } from "react-router-dom";
 import Layout from "./components/Layout.jsx";
+import ProtectedRoute from "./components/ProtectedRoute.jsx";
 import Home from "./pages/Home.jsx";
 import Courses from "./pages/Courses.jsx";
 import CourseDetails from "./pages/CourseDetails.jsx";
@@ -10,6 +11,7 @@ import MyProgress from "./pages/MyProgress.jsx";
 import AdminLogin from "./pages/AdminLogin.jsx";
 import AdminDashboard from "./pages/AdminDashboard.jsx";
 import PerformanceReports from "./pages/PerformanceReports.jsx";
+import ManageCourses from "./pages/ManageCourses.jsx";
 
 export default function App() {
   return (
@@ -21,11 +23,47 @@ export default function App() {
         <Route path="/contact" element={<Contact />} />
         <Route path="/login" element={<LoginRegister />} />
         <Route path="/register" element={<Navigate to="/login" replace />} />
-        <Route path="/dashboard" element={<UserDashboard />} />
-        <Route path="/progress" element={<MyProgress />} />
+        <Route
+          path="/dashboard"
+          element={
+            <ProtectedRoute roles={["student", "teacher"]}>
+              <UserDashboard />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/progress"
+          element={
+            <ProtectedRoute roles={["student", "teacher"]}>
+              <MyProgress />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/manage/courses"
+          element={
+            <ProtectedRoute roles={["teacher", "admin"]}>
+              <ManageCourses />
+            </ProtectedRoute>
+          }
+        />
         <Route path="/admin/login" element={<AdminLogin />} />
-        <Route path="/admin" element={<AdminDashboard />} />
-        <Route path="/reports" element={<PerformanceReports />} />
+        <Route
+          path="/admin"
+          element={
+            <ProtectedRoute roles={["admin"]}>
+              <AdminDashboard />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/reports"
+          element={
+            <ProtectedRoute roles={["student", "teacher", "admin"]}>
+              <PerformanceReports />
+            </ProtectedRoute>
+          }
+        />
       </Route>
     </Routes>
   );

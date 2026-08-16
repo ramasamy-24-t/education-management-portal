@@ -1,4 +1,5 @@
 import { NavLink, Outlet } from "react-router-dom";
+import { useAuth } from "../hooks/useAuth.js";
 
 const linkClass = ({ isActive }) =>
   `rounded-md px-3 py-1.5 text-sm font-medium ${
@@ -6,6 +7,8 @@ const linkClass = ({ isActive }) =>
   }`;
 
 export default function Layout() {
+  const { user, logout } = useAuth();
+
   return (
     <div className="min-h-screen">
       <header className="border-b border-slate-200 bg-white">
@@ -13,7 +16,7 @@ export default function Layout() {
           <NavLink to="/" className="text-lg font-semibold text-slate-900">
             Education Management Portal
           </NavLink>
-          <nav className="flex flex-wrap gap-1">
+          <nav className="flex flex-wrap items-center gap-1">
             <NavLink to="/" className={linkClass} end>
               Home
             </NavLink>
@@ -23,24 +26,50 @@ export default function Layout() {
             <NavLink to="/contact" className={linkClass}>
               Contact
             </NavLink>
-            <NavLink to="/login" className={linkClass}>
-              Login / Register
-            </NavLink>
-            <NavLink to="/dashboard" className={linkClass}>
-              User Dashboard
-            </NavLink>
-            <NavLink to="/progress" className={linkClass}>
-              My Progress
-            </NavLink>
-            <NavLink to="/admin/login" className={linkClass}>
-              Admin Login
-            </NavLink>
-            <NavLink to="/admin" className={linkClass}>
-              Admin Dashboard
-            </NavLink>
-            <NavLink to="/reports" className={linkClass}>
-              Reports
-            </NavLink>
+            {!user ? (
+              <>
+                <NavLink to="/login" className={linkClass}>
+                  Login / Register
+                </NavLink>
+                <NavLink to="/admin/login" className={linkClass}>
+                  Admin Login
+                </NavLink>
+              </>
+            ) : null}
+            {user?.role === "student" || user?.role === "teacher" ? (
+              <>
+                <NavLink to="/dashboard" className={linkClass}>
+                  Dashboard
+                </NavLink>
+                <NavLink to="/progress" className={linkClass}>
+                  My Progress
+                </NavLink>
+              </>
+            ) : null}
+            {user?.role === "teacher" || user?.role === "admin" ? (
+              <NavLink to="/manage/courses" className={linkClass}>
+                Manage Courses
+              </NavLink>
+            ) : null}
+            {user?.role === "admin" ? (
+              <NavLink to="/admin" className={linkClass}>
+                Admin
+              </NavLink>
+            ) : null}
+            {user ? (
+              <>
+                <NavLink to="/reports" className={linkClass}>
+                  Reports
+                </NavLink>
+                <button
+                  type="button"
+                  onClick={logout}
+                  className="rounded-md px-3 py-1.5 text-sm font-medium text-slate-700 hover:bg-slate-200"
+                >
+                  Logout
+                </button>
+              </>
+            ) : null}
           </nav>
         </div>
       </header>
