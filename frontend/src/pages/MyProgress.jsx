@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { api } from "../api/client.js";
 import AssistantChat from "../components/AssistantChat.jsx";
 import RiskTrend from "../components/RiskTrend.jsx";
@@ -9,13 +9,20 @@ export default function MyProgress() {
   const [data, setData] = useState(null);
   const [error, setError] = useState("");
   const [pending, setPending] = useState(false);
+  const dataRef = useRef(null);
+  dataRef.current = data;
 
   async function load() {
-    setData(await api("/users/me/progress-overview", { token }));
+    const next = await api("/users/me/progress-overview", { token });
+    setData(next);
+    setError("");
   }
 
   useEffect(() => {
-    load().catch((err) => setError(err.message));
+    load().catch((err) => {
+      // Keep the page if we already have data (common during uvicorn --reload).
+      if (!dataRef.current) setError(err.message);
+    });
   }, [token]);
 
   async function refresh() {
