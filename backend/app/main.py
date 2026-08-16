@@ -1,7 +1,7 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from app.routers import health
+from app.routers import auth, classes, courses, enrollments, health, teachers
 
 app = FastAPI(title="Education Management Portal API", version="0.1.0")
 
@@ -14,6 +14,11 @@ app.add_middleware(
 )
 
 app.include_router(health.router)
+app.include_router(auth.router)
+app.include_router(courses.router)
+app.include_router(classes.router)
+app.include_router(enrollments.router)
+app.include_router(teachers.router)
 
 
 @app.get("/")
