@@ -1,6 +1,5 @@
 import { useEffect, useRef, useState } from "react";
 import { api } from "../api/client.js";
-import AssistantChat from "../components/AssistantChat.jsx";
 import RiskTrend from "../components/RiskTrend.jsx";
 import { useAuth } from "../hooks/useAuth.js";
 
@@ -54,7 +53,8 @@ export default function MyProgress() {
       </div>
       <p className="text-slate-600">
         Performance numbers come from your attendance, assignments, and exams. Insights are stored in the AI Engine
-        and reused so pages stay up if Azure is unavailable.
+        and reused so pages stay up if Azure is unavailable. Use the robot button at the bottom right to ask about your
+        progress.
       </p>
 
       {error ? <p className="rounded-md bg-red-50 px-3 py-2 text-sm text-red-700">{error}</p> : null}
@@ -78,8 +78,6 @@ export default function MyProgress() {
               />
             </dl>
           </div>
-
-          <AssistantChat studentId={user.id} token={token} />
 
           <div className="rounded-xl border border-amber-200 bg-amber-50 p-5">
             <h2 className="text-lg font-semibold text-amber-950">At-risk trend</h2>

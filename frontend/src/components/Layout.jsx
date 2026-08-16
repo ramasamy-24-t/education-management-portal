@@ -1,5 +1,6 @@
 import { NavLink, Outlet } from "react-router-dom";
 import { useAuth } from "../hooks/useAuth.js";
+import AssistantChat from "./AssistantChat.jsx";
 
 const linkClass = ({ isActive }) =>
   `rounded-md px-3 py-1.5 text-sm font-medium ${
@@ -89,6 +90,7 @@ export default function Layout() {
       <main className="mx-auto max-w-6xl px-4 py-8">
         <Outlet />
       </main>
+      <AssistantChat />
     </div>
   );
 }

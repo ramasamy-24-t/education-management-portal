@@ -62,7 +62,7 @@ npm run dev
 
 ## Demo notes (judges)
 
-The live wow-moment is **My Progress → “Ask about your progress”**. Log in as `rohan.sharma@edu.local`, open My Progress, and ask something like “Why is my attendance flagged?” or “What should I study first?” The assistant only sees that student’s attendance, grades, exam analysis, weak subjects, and assignment AI feedback. Off-topic questions get a polite redirect.
+The live wow-moment is the **maroon robot button** (bottom right) after logging in as `rohan.sharma@edu.local`. Click it to pop out the tilted chat card. Ask “Why is my attendance flagged?” or “What should I study first?” The assistant only sees that student’s attendance, grades, exam analysis, weak subjects, and assignment AI feedback. Off-topic questions get a polite redirect.
 
 Then optionally show **Generate practice questions** on a weak subject, and **Refresh insights** on the admin dashboard.
 
@@ -86,7 +86,7 @@ Then optionally show **Generate practice questions** on a weak subject, and **Re
 ### User Dashboards
 - **Student:** Profile, enrolled courses, assignments with submissions, attendance, grades, AI recommendations, progress overview
 - **Teacher:** Profile, owned courses and classes, links to academic management
-- **My Progress (student):** Performance metrics, **Ask about your progress** chat, weak subjects with practice questions, improvement tips, AI insights, at-risk trend
+- **My Progress (student):** Performance metrics, weak subjects with practice questions, improvement tips, AI insights, at-risk trend. Chat lives on the floating robot button (all student pages).
 
 ### Admin Dashboard
 - **User Management:** List/create/deactivate students and teachers
@@ -307,7 +307,7 @@ Copy `backend/.env.example` to `backend/.env`:
 - [x] Download / Print Report
 
 ### Innovation Add-ons
-- [x] **AI progress assistant (headline demo)** — My Progress chat: `POST /ai/assistant/{student_id}` with a free-text question. Context is **this student only** (attendance summary, grades, `exam_analysis.weak_topics`, stored weak subjects, assignment `ai_feedback`). Answers are 2–4 sentences. Off-topic questions are refused. Chat is **client-side only** (refresh clears it). Cap: 16 messages in the UI; last 6 turns sent as history. Rate limit: 12 questions / 5 minutes per student (in-memory, 429).
+- [x] **AI progress assistant (headline demo)** — Floating robot button (students only, every page): click to pop out a tilted, rounded chat card. `POST /ai/assistant/{student_id}` with a free-text question. Context is **this student only** (attendance summary, grades, `exam_analysis.weak_topics`, stored weak subjects, assignment `ai_feedback`). Answers are 2–4 sentences. Off-topic questions are refused. Chat is **client-side only** (refresh clears it). Cap: 16 messages in the UI; last 6 turns sent as history. Rate limit: 12 questions / 5 minutes per student (in-memory, 429).
 - [x] At-risk **risk trend** — improving / worsening / stable (or “not enough data yet”) on My Progress and Admin AI Insights & Monitoring
 - [x] **Generate practice questions** — My Progress, per weak subject; 3–4 questions from the Model Router using that subject + `exam_analysis.weak_topics`. Questions are **not persisted**; each click (or retry) generates a fresh set.
 
