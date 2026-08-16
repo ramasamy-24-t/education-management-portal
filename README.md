@@ -62,9 +62,9 @@ npm run dev
 
 ## Demo notes (judges)
 
-The live wow-moment is the **maroon robot button** (bottom right) after logging in as `rohan.sharma@edu.local`. Click it to pop out the tilted chat card. Ask “Why is my attendance flagged?” or “What should I study first?” The assistant only sees that student’s attendance, grades, exam analysis, weak subjects, and assignment AI feedback. Off-topic questions get a polite redirect.
+**Demo tip:** Log in as `rohan.sharma@edu.local`, open **My Progress**, and click the **black robot button** (bottom right) — that is the Study Assistant Chat; try it first.
 
-Then optionally show **Generate practice questions** on a weak subject, and **Refresh insights** on the admin dashboard.
+The assistant only sees that student’s attendance, grades, exam analysis, weak subjects, and assignment AI feedback. Ask “Why is my attendance flagged?” or “What should I study first?” Off-topic questions get a polite redirect. Then optionally generate practice questions on a weak subject, and open Admin → AI Insights to see risk trend.
 
 ---
 
@@ -307,9 +307,16 @@ Copy `backend/.env.example` to `backend/.env`:
 - [x] Download / Print Report
 
 ### Innovation Add-ons
-- [x] **AI progress assistant (headline demo)** — Floating robot button (students only, every page): click to pop out a tilted, rounded chat card. `POST /ai/assistant/{student_id}` with a free-text question. Context is **this student only** (attendance summary, grades, `exam_analysis.weak_topics`, stored weak subjects, assignment `ai_feedback`). Answers are 2–4 sentences. Off-topic questions are refused. Chat is **client-side only** (refresh clears it). Cap: 16 messages in the UI; last 6 turns sent as history. Rate limit: 12 questions / 5 minutes per student (in-memory, 429).
-- [x] At-risk **risk trend** — improving / worsening / stable (or “not enough data yet”) on My Progress and Admin AI Insights & Monitoring
-- [x] **Generate practice questions** — My Progress, per weak subject; 3–4 questions from the Model Router using that subject + `exam_analysis.weak_topics`. Questions are **not persisted**; each click (or retry) generates a fresh set.
+
+All three add-ons below are **completed**. None were skipped.
+
+| Add-on | Status | What it does | Where to find it |
+| --- | --- | --- | --- |
+| **Risk Trend** | Done | Compares two 3-day attendance/grade windows and shows improving / worsening / stable (or “not enough data yet”) with a one-line reason. | Student: **My Progress → At-risk trend**. Admin/teacher: **Admin Dashboard → AI Insights & Monitoring** (on at-risk rows). |
+| **Practice Questions** | Done | Generates 3–4 short questions for a weak subject using exam `weak_topics`. Not stored; each click regenerates. | Student: **My Progress → Weak subjects → Generate practice questions**. |
+| **Study Assistant Chat** | Done | Free-text Q&A over that student’s own academics only (2–4 sentences; off-topic redirect). Chat is in-memory, not persisted. | Student (any page, including **My Progress**): **black robot button, bottom right** — click to open the rounded chat card. |
+
+**Demo tip:** Try **Study Assistant Chat** first — student login → My Progress → robot button.
 
 ---
 
