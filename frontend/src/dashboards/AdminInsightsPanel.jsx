@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { api } from "../api/client.js";
+import RiskTrend from "../components/RiskTrend.jsx";
 import { useAuth } from "../hooks/useAuth.js";
 
 export default function AdminInsightsPanel() {
@@ -58,6 +59,9 @@ export default function AdminInsightsPanel() {
                 {row.class_name ? ` · ${row.class_name}` : ""}
               </p>
               <p className="mt-1 text-slate-700">{row.content}</p>
+              {row.type === "at_risk" ? (
+                <RiskTrend trend={row.trend} reason={row.trend_reason} compact />
+              ) : null}
             </li>
           ))}
         </ul>

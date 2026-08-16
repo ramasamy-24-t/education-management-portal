@@ -80,12 +80,12 @@ npm run dev
 ### User Dashboards
 - **Student:** Profile, enrolled courses, assignments with submissions, attendance, grades, AI recommendations, progress overview
 - **Teacher:** Profile, owned courses and classes, links to academic management
-- **My Progress (student):** Performance metrics, weak subjects, improvement tips, AI insights
+- **My Progress (student):** Performance metrics, weak subjects, improvement tips, AI insights, at-risk trend
 
 ### Admin Dashboard
 - **User Management:** List/create/deactivate students and teachers
 - **Quick Links:** Manage courses, assignments, exams, attendance
-- **AI Insights & Monitoring:** View/refresh stored insights across all classes
+- **AI Insights & Monitoring:** View/refresh stored insights across all classes, including at-risk trend arrows
 
 ### Reports & Performance Summary
 - **Student Report:** Own academic summary, weak areas, risk analysis, AI recommendations, print/download
@@ -95,11 +95,13 @@ npm run dev
 
 ### AI Engine (Azure AI Foundry)
 - **Performance Analysis:** Narrative summary from attendance + grades data
-- **At-Risk Detection:** Flags students with attendance < 70% or exam avg < 60%; model explains why
+- **At-Risk Detection:** Flags students with attendance < 70% or exam avg < 60%; model explains why. Includes a **risk trend** (improving / worsening / stable) comparing the last 3 days with the 3 days before that.
 - **Weak Subject Identification:** Identifies subjects needing improvement from grade patterns
 - **Study Recommendations:** Personalized tips per student
 - **Class Insights:** Teacher/admin-facing summaries per class
 - All insights stored in `ai_insights` table (6-hour cache, refresh on demand)
+
+**Risk trend windowing:** `ai_insights.trend` is `improving`, `worsening`, `stable`, or null. `trend_reason` is the one-line explanation. Windows are `TREND_WINDOW_DAYS = 3`: recent = `[today-3, today]`, prior = `[today-6, today-3)`. The model (via `ai_service.py`) sees both windows; if Azure fails, a ±5 percentage-point rule on attendance (and exam average when both windows have exams) is the fallback. Stored on the existing `at_risk` row — no extra table.
 
 ---
 
@@ -296,6 +298,9 @@ Copy `backend/.env.example` to `backend/.env`:
 - [x] AI Recommendations
 - [x] Download / Print Report
 
+### Innovation Add-ons
+- [x] At-risk **risk trend** — improving / worsening / stable (or “not enough data yet”) on My Progress and Admin AI Insights & Monitoring
+
 ---
 
 ## Known Limitations
@@ -319,6 +324,8 @@ Copy `backend/.env.example` to `backend/.env`:
 9. **Insights cached 6 hours** — Manual "Refresh" required for fresh AI analysis.
 
 10. **CORS locked to localhost:5173** — Change `main.py` for production deployment.
+
+11. **Risk trend uses 3-day windows, not 2 weeks** — Seed attendance only covers 5 consecutive days (`today-1` through `today-5`) and seed exams sit 10 days back, so a 14-day vs prior-14-day split would always be empty. Trend compares **the last 3 calendar days** with **the 3 days before that**. Both windows need at least one attendance record; otherwise the UI shows “not enough data yet” and does not guess. Demo exam dates usually fall outside both windows, so the first demo trend is attendance-driven.
 
 ---
 

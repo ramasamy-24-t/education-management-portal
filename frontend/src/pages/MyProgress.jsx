@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { api } from "../api/client.js";
+import RiskTrend from "../components/RiskTrend.jsx";
 import { useAuth } from "../hooks/useAuth.js";
 
 export default function MyProgress() {
@@ -68,6 +69,15 @@ export default function MyProgress() {
                 value={data.average_assignment_grade == null ? "—" : data.average_assignment_grade}
               />
             </dl>
+          </div>
+
+          <div className="rounded-xl border border-amber-200 bg-amber-50 p-5">
+            <h2 className="text-lg font-semibold text-amber-950">At-risk trend</h2>
+            <p className="mt-1 text-sm text-amber-900">
+              Compares the last 3 days with the 3 days before that. Shown next to the at-risk insight — never guessed
+              when a window is empty.
+            </p>
+            <RiskTrend trend={data.risk_trend} reason={data.risk_trend_reason} />
           </div>
 
           <ListCard title="Weak subjects" items={data.weak_subjects} empty="No weak subjects stored yet." />

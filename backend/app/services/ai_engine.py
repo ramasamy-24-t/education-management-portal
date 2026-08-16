@@ -2,12 +2,13 @@
 
 from __future__ import annotations
 
-from datetime import datetime, timedelta, timezone
+from datetime import date, datetime, timedelta, timezone
 
 from sqlalchemy.orm import Session, joinedload
 
 from app.models.ai_insight import AIInsight, InsightType
 from app.models.assignment import AssignmentSubmission
+from app.models.attendance import Attendance, AttendanceStatus
 from app.models.course import ClassGroup
 from app.models.exam import Exam, ExamAnalysis, Grade
 from app.models.user import User, UserRole
@@ -17,6 +18,10 @@ from app.services.academic_access import enrolled_students, list_accessible_clas
 AT_RISK_ATTENDANCE = 70.0
 AT_RISK_EXAM = 60.0
 STALE_AFTER = timedelta(hours=6)
+# Seed attendance is 5 consecutive days; 2-week windows would always be empty.
+TREND_WINDOW_DAYS = 3
+TREND_VALUES = ("improving", "worsening", "stable")
+NOT_ENOUGH_DATA = "Not enough data yet"
 
 
 def _now() -> datetime:
@@ -43,13 +48,25 @@ def _upsert(
     class_id: int | None,
     insight_type: InsightType,
     content: str,
+    trend: str | None = None,
+    trend_reason: str | None = None,
 ) -> AIInsight:
     row = _latest(db, student_id=student_id, class_id=class_id, insight_type=insight_type)
     if row:
         row.content = content
         row.created_at = _now()
+        if insight_type == InsightType.at_risk:
+            row.trend = trend
+            row.trend_reason = trend_reason
         return row
-    row = AIInsight(student_id=student_id, class_id=class_id, type=insight_type, content=content)
+    row = AIInsight(
+        student_id=student_id,
+        class_id=class_id,
+        type=insight_type,
+        content=content,
+        trend=trend if insight_type == InsightType.at_risk else None,
+        trend_reason=trend_reason if insight_type == InsightType.at_risk else None,
+    )
     db.add(row)
     return row
 
@@ -94,6 +111,130 @@ def student_snapshot(db: Session, student: User) -> dict:
         "assignments_total": len(assignments),
         "at_risk": attendance_percent < AT_RISK_ATTENDANCE or exam_avg < AT_RISK_EXAM,
     }
+
+
+def _attendance_percent(rows: list[Attendance]) -> float | None:
+    if not rows:
+        return None
+    present = sum(1 for row in rows if row.status in (AttendanceStatus.present, AttendanceStatus.late))
+    return round((present / len(rows)) * 100, 1)
+
+
+def _exam_average(rows: list[Grade]) -> float | None:
+    percents = []
+    for row in rows:
+        max_marks = row.exam.max_marks if row.exam else 0
+        if max_marks:
+            percents.append((row.marks_obtained / max_marks) * 100)
+    if not percents:
+        return None
+    return round(sum(percents) / len(percents), 1)
+
+
+def student_trend_windows(db: Session, student: User) -> dict:
+    """Two calendar windows of TREND_WINDOW_DAYS each, ending today."""
+    today = date.today()
+    recent_start = today - timedelta(days=TREND_WINDOW_DAYS)
+    prior_start = today - timedelta(days=TREND_WINDOW_DAYS * 2)
+
+    att_recent = (
+        db.query(Attendance)
+        .filter(
+            Attendance.student_id == student.id,
+            Attendance.date >= recent_start,
+            Attendance.date <= today,
+        )
+        .all()
+    )
+    att_prior = (
+        db.query(Attendance)
+        .filter(
+            Attendance.student_id == student.id,
+            Attendance.date >= prior_start,
+            Attendance.date < recent_start,
+        )
+        .all()
+    )
+    grades_recent = (
+        db.query(Grade)
+        .join(Exam)
+        .options(joinedload(Grade.exam))
+        .filter(Grade.student_id == student.id, Exam.date >= recent_start, Exam.date <= today)
+        .all()
+    )
+    grades_prior = (
+        db.query(Grade)
+        .join(Exam)
+        .options(joinedload(Grade.exam))
+        .filter(Grade.student_id == student.id, Exam.date >= prior_start, Exam.date < recent_start)
+        .all()
+    )
+    recent = {
+        "attendance": _attendance_percent(att_recent),
+        "exam_avg": _exam_average(grades_recent),
+        "attendance_n": len(att_recent),
+        "exam_n": len(grades_recent),
+    }
+    prior = {
+        "attendance": _attendance_percent(att_prior),
+        "exam_avg": _exam_average(grades_prior),
+        "attendance_n": len(att_prior),
+        "exam_n": len(grades_prior),
+    }
+    enough = recent["attendance_n"] > 0 and prior["attendance_n"] > 0
+    return {
+        "enough": enough,
+        "recent": recent,
+        "prior": prior,
+        "recent_label": f"{recent_start.isoformat()} to {today.isoformat()}",
+        "prior_label": f"{prior_start.isoformat()} to {(recent_start - timedelta(days=1)).isoformat()}",
+    }
+
+
+def _rule_trend(windows: dict) -> tuple[str, str]:
+    recent, prior = windows["recent"], windows["prior"]
+    parts = []
+    score = 0.0
+    if recent["attendance"] is not None and prior["attendance"] is not None:
+        delta = recent["attendance"] - prior["attendance"]
+        score += delta
+        parts.append(f"attendance {prior['attendance']}% → {recent['attendance']}%")
+    if recent["exam_avg"] is not None and prior["exam_avg"] is not None:
+        delta = recent["exam_avg"] - prior["exam_avg"]
+        score += delta
+        parts.append(f"exam average {prior['exam_avg']}% → {recent['exam_avg']}%")
+    detail = "; ".join(parts) if parts else "attendance moved little across the two windows"
+    if score > 5:
+        return "improving", f"Improving: {detail}."
+    if score < -5:
+        return "worsening", f"Worsening: {detail}."
+    return "stable", f"Stable: {detail}."
+
+
+def assess_risk_trend(db: Session, student: User) -> tuple[str | None, str]:
+    """Return (trend, one-line reason). trend is None when there are not two windows."""
+    windows = student_trend_windows(db, student)
+    if not windows["enough"]:
+        return None, NOT_ENOUGH_DATA
+
+    parsed = ai_service.complete_json(
+        "Compare two short academic windows for this student and return JSON with keys "
+        "trend (exactly one of: improving, worsening, stable) and reason (one sentence).\n"
+        f"Name: {student.name}\n"
+        f"Recent window ({windows['recent_label']}): attendance={windows['recent']['attendance']}% "
+        f"({windows['recent']['attendance_n']} records), exam_avg={windows['recent']['exam_avg']} "
+        f"({windows['recent']['exam_n']} exams).\n"
+        f"Prior window ({windows['prior_label']}): attendance={windows['prior']['attendance']}% "
+        f"({windows['prior']['attendance_n']} records), exam_avg={windows['prior']['exam_avg']} "
+        f"({windows['prior']['exam_n']} exams).\n"
+        "If a metric is null, ignore it. Do not invent data."
+    )
+    if isinstance(parsed, dict):
+        trend = str(parsed.get("trend") or "").strip().lower()
+        reason = str(parsed.get("reason") or "").strip()
+        if trend in TREND_VALUES and reason:
+            return trend, reason
+    return _rule_trend(windows)
 
 
 def generate_assignment_feedback(db: Session, submission: AssignmentSubmission) -> str | None:
@@ -181,9 +322,16 @@ def refresh_student_insights(db: Session, student: User, *, force: bool = False)
         )
     }
     if not force and all(_is_fresh(row) for row in existing.values() if row is not None) and existing[InsightType.performance]:
+        at_risk_row = existing[InsightType.at_risk]
+        if at_risk_row is not None and at_risk_row.trend is None and not at_risk_row.trend_reason:
+            trend, trend_reason = assess_risk_trend(db, student)
+            at_risk_row.trend = trend
+            at_risk_row.trend_reason = trend_reason
+            db.commit()
         return {key.value: (row.content if row else "") for key, row in existing.items()}
 
     snap = student_snapshot(db, student)
+    trend, trend_reason = assess_risk_trend(db, student)
     parsed = ai_service.complete_json(
         "Analyze this student's academic record. Return JSON with keys: "
         "performance (string narrative), at_risk (boolean), at_risk_reason (string), "
@@ -242,6 +390,8 @@ def refresh_student_insights(db: Session, student: User, *, force: bool = False)
         class_id=None,
         insight_type=InsightType.at_risk,
         content=str(at_risk_reason) if at_risk else "Not currently flagged as at-risk.",
+        trend=trend,
+        trend_reason=trend_reason,
     )
     _upsert(db, student_id=student.id, class_id=None, insight_type=InsightType.weak_subject, content="; ".join(str(item) for item in weak))
     _upsert(db, student_id=student.id, class_id=None, insight_type=InsightType.recommendation, content=" | ".join(str(item) for item in recs))
@@ -251,6 +401,8 @@ def refresh_student_insights(db: Session, student: User, *, force: bool = False)
         "at_risk": str(at_risk_reason) if at_risk else "Not currently flagged as at-risk.",
         "weak_subject": "; ".join(str(item) for item in weak),
         "recommendation": " | ".join(str(item) for item in recs),
+        "trend": trend,
+        "trend_reason": trend_reason,
     }
 
 
@@ -285,12 +437,16 @@ def refresh_class_insight(db: Session, class_group: ClassGroup, *, force: bool =
         reason = reasons.get(snap["student_id"]) or (
             f"{snap['name']}: attendance {snap['attendance_percent']}%, exam average {snap['exam_average']}%."
         )
+        student = next((item for item in students if item.id == snap["student_id"]), None)
+        trend, trend_reason = assess_risk_trend(db, student) if student else (None, NOT_ENOUGH_DATA)
         _upsert(
             db,
             student_id=snap["student_id"],
             class_id=class_group.id,
             insight_type=InsightType.at_risk,
             content=reason,
+            trend=trend,
+            trend_reason=trend_reason,
         )
     db.commit()
     return str(summary)
@@ -309,6 +465,7 @@ def list_student_insight_texts(db: Session, student: User, *, refresh: bool = Tr
     tips = []
     insights = []
     recs = []
+    at_risk_row = None
     for row in rows:
         if row.type == InsightType.weak_subject:
             weak.extend([part.strip() for part in row.content.split(";") if part.strip()])
@@ -317,11 +474,17 @@ def list_student_insight_texts(db: Session, student: User, *, refresh: bool = Tr
             recs.extend([part.strip() for part in row.content.split("|") if part.strip()])
         elif row.type in (InsightType.performance, InsightType.at_risk):
             insights.append(row.content)
+        if row.type == InsightType.at_risk and at_risk_row is None:
+            at_risk_row = row
+        elif row.type == InsightType.at_risk and row.class_id is None:
+            at_risk_row = row
     return {
         "weak_subjects": _unique(weak),
         "improvement_tips": _unique(tips),
         "ai_insights": _unique(insights),
         "ai_recommendations": _unique(recs),
+        "risk_trend": at_risk_row.trend if at_risk_row else None,
+        "risk_trend_reason": at_risk_row.trend_reason if at_risk_row else None,
     }
 
 
@@ -348,6 +511,8 @@ def list_monitoring(db: Session, actor: User) -> list[dict]:
             "class_name": row.class_group.name if row.class_group else None,
             "type": row.type.value,
             "content": row.content,
+            "trend": row.trend,
+            "trend_reason": row.trend_reason,
             "created_at": row.created_at.isoformat() if row.created_at else None,
         }
         for row in rows

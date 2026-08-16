@@ -28,6 +28,8 @@ class ProgressOverviewOut(BaseModel):
     improvement_tips: list[str] = Field(default_factory=list)
     ai_insights: list[str] = Field(default_factory=list)
     ai_pending: bool = True
+    risk_trend: str | None = None
+    risk_trend_reason: str | None = None
 
 
 class StudentDashboardOut(BaseModel):

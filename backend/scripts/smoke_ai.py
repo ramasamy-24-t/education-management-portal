@@ -19,6 +19,10 @@ def auth(value: str) -> dict:
 
 
 def main() -> None:
+    from app.db_bootstrap import ensure_schema
+
+    ensure_schema()
+
     status = client.get("/ai/status")
     assert status.status_code == 200
     assert "configured" in status.json()
@@ -32,6 +36,9 @@ def main() -> None:
     assert "weak_subjects" in body
     assert "improvement_tips" in body
     assert "ai_insights" in body
+    assert "risk_trend" in body
+    assert body["risk_trend"] in (None, "improving", "worsening", "stable")
+    assert "risk_trend_reason" in body
 
     denied = client.get("/ai/monitoring", headers=auth(student))
     assert denied.status_code == 403
@@ -46,6 +53,9 @@ def main() -> None:
     assert payload.get("performance")
     assert payload.get("weak_subject")
     assert payload.get("recommendation")
+    assert "trend" in payload
+    assert payload["trend"] in (None, "improving", "worsening", "stable")
+    assert payload.get("trend_reason")
 
     from app.services import ai_service
 

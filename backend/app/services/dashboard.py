@@ -53,7 +53,7 @@ def student_progress(db: Session, student: User) -> ProgressOverviewOut:
     try:
         texts = ai_engine.list_student_insight_texts(db, student, refresh=True)
     except Exception:
-        texts = {"weak_subjects": [], "improvement_tips": [], "ai_insights": [], "ai_recommendations": []}
+        texts = {"weak_subjects": [], "improvement_tips": [], "ai_insights": [], "ai_recommendations": [], "risk_trend": None, "risk_trend_reason": None}
     return ProgressOverviewOut(
         attendance_percent=attendance_percent,
         average_exam_percent=average_exam,
@@ -66,6 +66,8 @@ def student_progress(db: Session, student: User) -> ProgressOverviewOut:
         improvement_tips=texts["improvement_tips"],
         ai_insights=texts["ai_insights"],
         ai_pending=not bool(texts["ai_insights"] or texts["weak_subjects"] or texts["improvement_tips"]),
+        risk_trend=texts.get("risk_trend"),
+        risk_trend_reason=texts.get("risk_trend_reason"),
     )
 
 

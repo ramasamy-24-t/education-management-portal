@@ -1,7 +1,7 @@
 from datetime import datetime
 from enum import Enum as PyEnum
 
-from sqlalchemy import DateTime, Enum, ForeignKey, Integer, Text, func
+from sqlalchemy import DateTime, Enum, ForeignKey, Integer, String, Text, func
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.database import Base
@@ -23,6 +23,8 @@ class AIInsight(Base):
     class_id: Mapped[int | None] = mapped_column(ForeignKey("classes.id"), nullable=True, index=True)
     type: Mapped[InsightType] = mapped_column(Enum(InsightType), nullable=False, index=True)
     content: Mapped[str] = mapped_column(Text, nullable=False)
+    trend: Mapped[str | None] = mapped_column(String(32), nullable=True)
+    trend_reason: Mapped[str | None] = mapped_column(Text, nullable=True)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), nullable=False
     )
