@@ -27,8 +27,8 @@ def main() -> None:
     assert status.status_code == 200
     assert "configured" in status.json()
 
-    student = token("rohan.sharma@edu.local")
-    admin = token("admin@edu.local", admin=True)
+    student = token("rohan.sharma@edu.example.com")
+    admin = token("admin@edu.example.com", admin=True)
 
     progress = client.get("/users/me/progress-overview", headers=auth(student))
     assert progress.status_code == 200, progress.text
@@ -104,6 +104,24 @@ def main() -> None:
         json={"question": "How is the other student doing?"},
     )
     assert other_chat.status_code == 403
+
+    saved_practice = client.get(f"/ai/practice-questions/{student_id}", headers=auth(student))
+    assert saved_practice.status_code == 200
+    assert any(item["subject"] == "Linear Algebra" for item in saved_practice.json().get("sets", []))
+
+    saved_chat = client.get(f"/ai/assistant/{student_id}", headers=auth(student))
+    assert saved_chat.status_code == 200
+    assert saved_chat.json().get("messages")
+
+    tips = client.get("/ai/study-tips")
+    assert tips.status_code == 200
+    assert len(tips.json().get("tips") or []) >= 3
+
+    denied_tips = client.post("/ai/study-tips/refresh")
+    assert denied_tips.status_code == 401
+    refreshed_tips = client.post("/ai/study-tips/refresh", headers=auth(admin))
+    assert refreshed_tips.status_code == 200, refreshed_tips.text
+    assert len(refreshed_tips.json().get("tips") or []) >= 3
 
     print("smoke_ai: all checks passed")
 

@@ -1,6 +1,14 @@
 from pydantic import BaseModel, ConfigDict, Field
 
 
+class SchoolOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    name: str
+    slug: str
+
+
 class CourseCreate(BaseModel):
     title: str = Field(min_length=2, max_length=200)
     description: str = Field(min_length=1)
@@ -33,6 +41,7 @@ class CourseOut(BaseModel):
     schedule: str
     rating: float
     syllabus: str
+    school_id: int | None = None
     class_count: int = 0
     enrollment_count: int = 0
     enrolled: bool = False

@@ -1,8 +1,9 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Link, Navigate, useLocation, useNavigate } from "react-router-dom";
+import { api } from "../api/client.js";
 import { useAuth } from "../hooks/useAuth.js";
 
-const emptyRegister = { name: "", email: "", password: "", role: "student" };
+const emptyRegister = { name: "", email: "", password: "", role: "student", school_id: "" };
 
 export default function LoginRegister() {
   const { user, login, register } = useAuth();
@@ -11,8 +12,18 @@ export default function LoginRegister() {
   const [mode, setMode] = useState("login");
   const [loginForm, setLoginForm] = useState({ email: "", password: "" });
   const [registerForm, setRegisterForm] = useState(emptyRegister);
+  const [schools, setSchools] = useState([]);
   const [error, setError] = useState("");
   const [pending, setPending] = useState(false);
+
+  useEffect(() => {
+    api("/schools")
+      .then((rows) => {
+        setSchools(rows);
+        if (rows[0]) setRegisterForm((prev) => ({ ...prev, school_id: String(rows[0].id) }));
+      })
+      .catch(() => setSchools([]));
+  }, []);
 
   if (user) {
     const dest = user.role === "admin" ? "/admin" : "/dashboard";
@@ -61,11 +72,13 @@ export default function LoginRegister() {
         .
       </p>
 
-      <div className="flex rounded-lg bg-slate-200 p-1">
+      <div className="flex rounded-lg bg-slate-200 p-1" role="tablist" aria-label="Account">
         {["login", "register"].map((item) => (
           <button
             key={item}
             type="button"
+            role="tab"
+            aria-selected={mode === item}
             onClick={() => {
               setMode(item);
               setError("");
@@ -85,13 +98,15 @@ export default function LoginRegister() {
         <form onSubmit={handleLogin} className="space-y-4 rounded-xl border border-slate-200 bg-white p-5">
           <Field
             label="Email"
-            type="email"
+            type="text"
+            autoComplete="username"
             value={loginForm.email}
             onChange={(email) => setLoginForm((prev) => ({ ...prev, email }))}
           />
           <Field
             label="Password"
             type="password"
+            autoComplete="current-password"
             value={loginForm.password}
             onChange={(password) => setLoginForm((prev) => ({ ...prev, password }))}
           />
@@ -107,21 +122,39 @@ export default function LoginRegister() {
         <form onSubmit={handleRegister} className="space-y-4 rounded-xl border border-slate-200 bg-white p-5">
           <Field
             label="Full name"
+            autoComplete="name"
             value={registerForm.name}
             onChange={(name) => setRegisterForm((prev) => ({ ...prev, name }))}
           />
           <Field
             label="Email"
             type="email"
+            autoComplete="email"
             value={registerForm.email}
             onChange={(email) => setRegisterForm((prev) => ({ ...prev, email }))}
           />
           <Field
             label="Password"
             type="password"
+            autoComplete="new-password"
             value={registerForm.password}
             onChange={(password) => setRegisterForm((prev) => ({ ...prev, password }))}
           />
+          <label className="block text-sm">
+            <span className="mb-1 block font-medium text-slate-700">School</span>
+            <select
+              required
+              value={registerForm.school_id}
+              onChange={(event) => setRegisterForm((prev) => ({ ...prev, school_id: event.target.value }))}
+              className="w-full rounded-md border border-slate-300 px-3 py-2 outline-none focus:border-slate-500"
+            >
+              {schools.map((school) => (
+                <option key={school.id} value={school.id}>
+                  {school.name}
+                </option>
+              ))}
+            </select>
+          </label>
           <fieldset>
             <legend className="mb-2 text-sm font-medium text-slate-700">Role</legend>
             <div className="flex gap-4">
@@ -152,13 +185,14 @@ export default function LoginRegister() {
   );
 }
 
-function Field({ label, type = "text", value, onChange }) {
+function Field({ label, type = "text", value, onChange, autoComplete }) {
   return (
     <label className="block text-sm">
       <span className="mb-1 block font-medium text-slate-700">{label}</span>
       <input
         type={type}
         required
+        autoComplete={autoComplete}
         value={value}
         onChange={(event) => onChange(event.target.value)}
         className="w-full rounded-md border border-slate-300 px-3 py-2 outline-none focus:border-slate-500"

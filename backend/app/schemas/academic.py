@@ -89,10 +89,23 @@ class SubmissionOut(BaseModel):
     student_name: str
     submitted_at: datetime
     content: str
+    file_url: str | None = None
+    original_filename: str | None = None
     grade: float | None
     feedback: str | None
     ai_feedback: str | None
     due_date: datetime | None = None
+
+
+class ExamQuestionIn(BaseModel):
+    prompt: str = Field(min_length=4, max_length=500)
+    options: list[str] = Field(min_length=2, max_length=6)
+    correct: int = Field(ge=0)
+
+
+class ExamQuestionPublic(BaseModel):
+    prompt: str
+    options: list[str]
 
 
 class ExamCreate(BaseModel):
@@ -100,6 +113,7 @@ class ExamCreate(BaseModel):
     title: str = Field(min_length=2, max_length=200)
     date: date
     max_marks: float = Field(gt=0)
+    questions: list[ExamQuestionIn] | None = None
 
 
 class ExamOut(BaseModel):
@@ -110,6 +124,31 @@ class ExamOut(BaseModel):
     title: str
     date: date
     max_marks: float
+    question_count: int = 0
+    attempted: bool = False
+    has_grade: bool = False
+
+
+class ExamPaperOut(BaseModel):
+    exam_id: int
+    title: str
+    max_marks: float
+    already_attempted: bool
+    has_grade: bool
+    questions: list[ExamQuestionPublic]
+
+
+class ExamAttemptRequest(BaseModel):
+    answers: list[int] = Field(min_length=1)
+
+
+class ExamAttemptOut(BaseModel):
+    exam_id: int
+    score: float
+    max_marks: float
+    percent: float
+    correct_count: int
+    question_count: int
 
 
 class GradeRecordIn(BaseModel):

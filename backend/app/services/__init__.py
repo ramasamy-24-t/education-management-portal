@@ -1,1 +1,1 @@
-# Package marker for domain services (auth, academic, AI) added in later prompts.
+"""Domain services (auth, courses, academic work, dashboards, AI, reports)."""

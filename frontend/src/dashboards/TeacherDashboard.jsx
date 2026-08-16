@@ -39,19 +39,26 @@ export default function TeacherDashboard() {
         <p className="text-sm capitalize text-slate-600">Role: {data.profile.role}</p>
       </section>
 
-      <div className="flex flex-wrap gap-2">
-        {tabs.map((item) => (
-          <button
-            key={item.id}
-            type="button"
-            onClick={() => setTab(item.id)}
-            className={`rounded-md px-3 py-1.5 text-sm font-medium ${
-              tab === item.id ? "bg-slate-900 text-white" : "bg-slate-200 text-slate-700"
-            }`}
-          >
-            {item.label}
-          </button>
-        ))}
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div className="flex flex-wrap gap-2" role="tablist" aria-label="Teacher dashboard">
+          {tabs.map((item) => (
+            <button
+              key={item.id}
+              type="button"
+              role="tab"
+              aria-selected={tab === item.id}
+              onClick={() => setTab(item.id)}
+              className={`rounded-md px-3 py-1.5 text-sm font-medium ${
+                tab === item.id ? "bg-slate-900 text-white" : "bg-slate-200 text-slate-700"
+              }`}
+            >
+              {item.label}
+            </button>
+          ))}
+        </div>
+        <Link to="/reports" className="text-sm underline">
+          Performance reports
+        </Link>
       </div>
 
       {tab === "classes" ? (

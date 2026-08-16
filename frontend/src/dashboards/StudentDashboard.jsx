@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
-import { api } from "../api/client.js";
+import { api, apiForm } from "../api/client.js";
 import CourseCard from "../components/CourseCard.jsx";
 import { useAuth } from "../hooks/useAuth.js";
 
@@ -23,11 +23,9 @@ export default function StudentDashboard() {
     setError("");
     setMessage("");
     try {
-      await api(`/assignments/${assignmentId}/submissions`, {
-        method: "POST",
-        token,
-        body: { content: drafts[assignmentId] || "" },
-      });
+      const formData = new FormData();
+      formData.append("content", drafts[assignmentId] || "");
+      await apiForm(`/assignments/${assignmentId}/submissions`, { token, formData });
       setDrafts((prev) => ({ ...prev, [assignmentId]: "" }));
       setMessage("Submission saved.");
       await load();
@@ -46,6 +44,14 @@ export default function StudentDashboard() {
     <div className="space-y-6">
       {error ? <p className="rounded-md bg-red-50 px-3 py-2 text-sm text-red-700">{error}</p> : null}
       {message ? <p className="rounded-md bg-emerald-50 px-3 py-2 text-sm text-emerald-800">{message}</p> : null}
+
+      <nav className="flex flex-wrap gap-2 text-sm" aria-label="Dashboard shortcuts">
+        <Shortcut to="/attendance">Attendance</Shortcut>
+        <Shortcut to="/assignments">Assignments</Shortcut>
+        <Shortcut to="/exams">Exams</Shortcut>
+        <Shortcut to="/progress">My Progress</Shortcut>
+        <Shortcut to="/reports">Reports</Shortcut>
+      </nav>
 
       <section className="rounded-xl border border-slate-200 bg-white p-5">
         <h2 className="text-lg font-semibold">Profile</h2>
@@ -73,7 +79,12 @@ export default function StudentDashboard() {
       </section>
 
       <section className="space-y-3">
-        <h2 className="text-lg font-semibold">My assignments</h2>
+        <div className="flex items-center justify-between">
+          <h2 className="text-lg font-semibold">My assignments</h2>
+          <Link to="/assignments" className="text-sm underline">
+            Open assignments
+          </Link>
+        </div>
         {data.assignments.length === 0 ? (
           <p className="text-slate-600">No assignments yet.</p>
         ) : (
@@ -95,13 +106,15 @@ export default function StudentDashboard() {
                   </p>
                 </div>
               ) : null}
-              <textarea
-                rows={3}
-                value={drafts[item.id] ?? ""}
-                onChange={(event) => setDrafts((prev) => ({ ...prev, [item.id]: event.target.value }))}
-                placeholder="Write your submission"
-                className="mt-3 w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
-              />
+              <label className="mt-3 block text-sm">
+                <span className="mb-1 block font-medium text-slate-700">Submission text</span>
+                <textarea
+                  rows={3}
+                  value={drafts[item.id] ?? ""}
+                  onChange={(event) => setDrafts((prev) => ({ ...prev, [item.id]: event.target.value }))}
+                  className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
+                />
+              </label>
               <button
                 type="button"
                 onClick={() => submit(item.id)}
@@ -115,7 +128,12 @@ export default function StudentDashboard() {
       </section>
 
       <section className="rounded-xl border border-slate-200 bg-white p-5">
-        <h2 className="text-lg font-semibold">Attendance</h2>
+        <div className="flex items-center justify-between">
+          <h2 className="text-lg font-semibold">Attendance</h2>
+          <Link to="/attendance" className="text-sm underline">
+            View attendance
+          </Link>
+        </div>
         {data.attendance.length === 0 ? (
           <p className="mt-2 text-sm text-slate-600">No attendance recorded yet.</p>
         ) : (
@@ -131,7 +149,12 @@ export default function StudentDashboard() {
       </section>
 
       <section className="rounded-xl border border-slate-200 bg-white p-5">
-        <h2 className="text-lg font-semibold">Grades</h2>
+        <div className="flex items-center justify-between">
+          <h2 className="text-lg font-semibold">Grades</h2>
+          <Link to="/exams" className="text-sm underline">
+            Open exams
+          </Link>
+        </div>
         {data.grades.length === 0 ? (
           <p className="mt-2 text-sm text-slate-600">No exam grades yet.</p>
         ) : (
@@ -182,6 +205,14 @@ export default function StudentDashboard() {
         </dl>
       </section>
     </div>
+  );
+}
+
+function Shortcut({ to, children }) {
+  return (
+    <Link to={to} className="rounded-md bg-slate-200 px-3 py-1.5 font-medium text-slate-800 hover:bg-slate-300">
+      {children}
+    </Link>
   );
 }
 

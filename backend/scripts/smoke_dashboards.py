@@ -21,9 +21,9 @@ def auth(value: str) -> dict:
 
 
 def main() -> None:
-    student = token("rohan.sharma@edu.local")
-    teacher = token("priya.nair@edu.local")
-    admin = token("admin@edu.local", admin=True)
+    student = token("rohan.sharma@edu.example.com")
+    teacher = token("priya.nair@edu.example.com")
+    admin = token("admin@edu.example.com", admin=True)
 
     student_dash = client.get("/users/me/dashboard", headers=auth(student))
     assert student_dash.status_code == 200, student_dash.text
@@ -44,7 +44,7 @@ def main() -> None:
     assert teacher_dash.status_code == 200
     assert teacher_dash.json()["classes"]
 
-    email = f"temp.student.{uuid4().hex[:8]}@edu.local"
+    email = f"temp.student.{uuid4().hex[:8]}@edu.example.com"
     created = client.post(
         "/admin/users",
         headers=auth(admin),
@@ -61,7 +61,7 @@ def main() -> None:
     forbidden = client.post(
         "/admin/users",
         headers=auth(teacher),
-        json={"name": "Nope", "email": "nope@edu.local", "password": "password123", "role": "student"},
+        json={"name": "Nope", "email": "nope@edu.example.com", "password": "password123", "role": "student"},
     )
     assert forbidden.status_code == 403
 
@@ -72,6 +72,21 @@ def main() -> None:
     assert blocked.status_code == 403
 
     client.patch(f"/admin/users/{user_id}", headers=auth(admin), json={"is_active": True})
+
+    messages = client.get("/contact/messages", headers=auth(admin))
+    assert messages.status_code == 200, messages.text
+    student_mail = client.get("/contact/messages", headers=auth(student))
+    assert student_mail.status_code == 403
+
+    students = client.get("/admin/users?role=student", headers=auth(admin))
+    assert students.status_code == 200
+    rohan = next(row for row in students.json() if row["email"].startswith("rohan.sharma"))
+    kavya = token("kavya.reddy@edu.example.com")
+    blocked_report = client.get(f"/reports/student/{rohan['id']}", headers=auth(kavya))
+    assert blocked_report.status_code == 403, blocked_report.text
+    allowed_report = client.get(f"/reports/student/{rohan['id']}", headers=auth(teacher))
+    assert allowed_report.status_code == 200, allowed_report.text
+
     print("smoke_dashboards: all checks passed")
 
 

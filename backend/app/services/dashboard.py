@@ -1,3 +1,5 @@
+"""Student and teacher dashboard payloads. Learning data here feeds the AI Engine."""
+
 from fastapi import HTTPException, status
 from sqlalchemy.orm import Session
 
@@ -10,6 +12,7 @@ from app.schemas.dashboard import (
     TeacherDashboardOut,
 )
 from app.schemas.user import UserPublic
+from app.services import ai_engine
 from app.services.academic_access import list_accessible_classes
 from app.services.assignments import list_assignments, my_submissions
 from app.services.attendance import attendance_summary
@@ -47,8 +50,6 @@ def student_progress(db: Session, student: User) -> ProgressOverviewOut:
     submitted_ids = {row.assignment_id for row in submissions}
     graded = [row.grade for row in submissions if row.grade is not None]
     completion = round((len(submitted_ids) / len(assignments)) * 100, 1) if assignments else 0.0
-
-    from app.services import ai_engine
 
     try:
         texts = ai_engine.list_student_insight_texts(db, student, refresh=True)

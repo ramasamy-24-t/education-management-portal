@@ -4,7 +4,7 @@ from sqlalchemy.orm import Session
 from app.database import get_db
 from app.deps import get_current_user, require_roles
 from app.models.user import User, UserRole
-from app.schemas.academic import ExamCreate, ExamGradesRequest, ExamOut, GradeOut
+from app.schemas.academic import ExamAttemptOut, ExamAttemptRequest, ExamCreate, ExamGradesRequest, ExamOut, ExamPaperOut, GradeOut
 from app.services import exams as exam_service
 
 router = APIRouter(tags=["exams"])
@@ -34,7 +34,26 @@ def get_exam(
     db: Session = Depends(get_db),
     user: User = Depends(get_current_user),
 ):
-    return exam_service._exam_out(exam_service.get_exam(db, exam_id, user))
+    return exam_service.exam_out(exam_service.get_exam(db, exam_id, user))
+
+
+@router.get("/exams/{exam_id}/paper", response_model=ExamPaperOut)
+def exam_paper(
+    exam_id: int,
+    db: Session = Depends(get_db),
+    user: User = Depends(require_roles(UserRole.student)),
+):
+    return exam_service.get_exam_paper(db, exam_id, user)
+
+
+@router.post("/exams/{exam_id}/attempts", response_model=ExamAttemptOut, status_code=201)
+def submit_attempt(
+    exam_id: int,
+    payload: ExamAttemptRequest,
+    db: Session = Depends(get_db),
+    user: User = Depends(require_roles(UserRole.student)),
+):
+    return exam_service.submit_exam_attempt(db, exam_id, payload, user)
 
 
 @router.put("/exams/{exam_id}/grades", response_model=list[GradeOut])

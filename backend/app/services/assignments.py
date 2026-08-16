@@ -1,10 +1,12 @@
-from fastapi import HTTPException, status
+"""Assignment create/list/submit/grade, including optional file uploads."""
+
+from fastapi import HTTPException, UploadFile, status
 from sqlalchemy.orm import Session, joinedload
 
 from app.models.assignment import Assignment, AssignmentSubmission
 from app.models.course import ClassGroup
 from app.models.user import User, UserRole
-from app.schemas.academic import AssignmentCreate, AssignmentOut, SubmissionCreate, SubmissionGrade, SubmissionOut
+from app.schemas.academic import AssignmentCreate, AssignmentOut, SubmissionGrade, SubmissionOut
 from app.services.academic_access import (
     assert_can_manage_class,
     assert_enrolled_in_class,
@@ -12,9 +14,10 @@ from app.services.academic_access import (
     list_accessible_classes,
     load_class,
 )
+from app.services.uploads import save_submission_file
 
 
-def _assignment_out(assignment: Assignment) -> AssignmentOut:
+def assignment_out(assignment: Assignment) -> AssignmentOut:
     class_group = assignment.class_group
     course = class_group.course if class_group else None
     return AssignmentOut(
@@ -38,6 +41,8 @@ def _submission_out(row: AssignmentSubmission) -> SubmissionOut:
         student_name=row.student.name if row.student else "",
         submitted_at=row.submitted_at,
         content=row.content,
+        file_url=f"/submissions/{row.id}/file" if row.file_path else None,
+        original_filename=row.original_filename,
         grade=row.grade,
         feedback=row.feedback,
         ai_feedback=row.ai_feedback,
@@ -57,7 +62,7 @@ def create_assignment(db: Session, payload: AssignmentCreate, actor: User) -> As
     db.add(assignment)
     db.commit()
     db.refresh(assignment)
-    return _assignment_out(assignment)
+    return assignment_out(assignment)
 
 
 def list_assignments(db: Session, actor: User, *, class_id: int | None = None) -> list[AssignmentOut]:
@@ -73,7 +78,7 @@ def list_assignments(db: Session, actor: User, *, class_id: int | None = None) -
             return []
         query = query.filter(Assignment.class_id.in_(class_ids))
     rows = query.order_by(Assignment.due_date.asc()).all()
-    return [_assignment_out(row) for row in rows]
+    return [assignment_out(row) for row in rows]
 
 
 def get_assignment(db: Session, assignment_id: int, actor: User) -> Assignment:
@@ -94,12 +99,32 @@ def get_assignment(db: Session, assignment_id: int, actor: User) -> Assignment:
     return assignment
 
 
-def submit_assignment(db: Session, assignment_id: int, payload: SubmissionCreate, student: User) -> SubmissionOut:
+def submit_assignment(
+    db: Session,
+    assignment_id: int,
+    student: User,
+    *,
+    content: str = "",
+    upload: UploadFile | None = None,
+) -> SubmissionOut:
     if student.role != UserRole.student:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Only students can submit assignments")
     assignment = get_assignment(db, assignment_id, student)
     class_group = load_class(db, assignment.class_id)
     assert_enrolled_in_class(db, class_group, student)
+
+    text = (content or "").strip()
+    file_path = None
+    original_filename = None
+    if upload is not None and upload.filename:
+        file_path, original_filename = save_submission_file(assignment.id, student.id, upload)
+    if not text and not file_path:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Write a submission or attach a file",
+        )
+    if not text and original_filename:
+        text = f"[Attachment: {original_filename}]"
 
     existing = (
         db.query(AssignmentSubmission)
@@ -115,7 +140,10 @@ def submit_assignment(db: Session, assignment_id: int, payload: SubmissionCreate
             detail="This submission has already been graded and cannot be changed",
         )
     if existing:
-        existing.content = payload.content.strip()
+        existing.content = text
+        if file_path:
+            existing.file_path = file_path
+            existing.original_filename = original_filename
         db.commit()
         db.refresh(existing)
         return _submission_out(existing)
@@ -123,7 +151,9 @@ def submit_assignment(db: Session, assignment_id: int, payload: SubmissionCreate
     row = AssignmentSubmission(
         assignment_id=assignment.id,
         student_id=student.id,
-        content=payload.content.strip(),
+        content=text,
+        file_path=file_path,
+        original_filename=original_filename,
     )
     db.add(row)
     db.commit()
@@ -180,3 +210,23 @@ def my_submissions(db: Session, student: User) -> list[SubmissionOut]:
         .all()
     )
     return [_submission_out(row) for row in rows]
+
+
+def get_submission_file(db: Session, submission_id: int, actor: User):
+    row = (
+        db.query(AssignmentSubmission)
+        .options(joinedload(AssignmentSubmission.assignment), joinedload(AssignmentSubmission.student))
+        .filter(AssignmentSubmission.id == submission_id)
+        .first()
+    )
+    if row is None or not row.file_path:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="File not found")
+    assignment = get_assignment(db, row.assignment_id, actor)
+    class_group = load_class(db, assignment.class_id)
+    if actor.role == UserRole.student and row.student_id != actor.id:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="You cannot download this file")
+    if actor.role != UserRole.student:
+        assert_can_manage_class(class_group, actor)
+    from app.services.uploads import resolve_upload
+
+    return resolve_upload(row.file_path), row.original_filename or "attachment"

@@ -20,12 +20,15 @@ export default function App() {
   return (
     <Routes>
       <Route element={<Layout />}>
+        {/* Public pages */}
         <Route path="/" element={<Home />} />
         <Route path="/courses" element={<Courses />} />
         <Route path="/courses/:courseId" element={<CourseDetails />} />
         <Route path="/contact" element={<Contact />} />
         <Route path="/login" element={<LoginRegister />} />
         <Route path="/register" element={<Navigate to="/login" replace />} />
+
+        {/* User area */}
         <Route
           path="/dashboard"
           element={
@@ -42,6 +45,8 @@ export default function App() {
             </ProtectedRoute>
           }
         />
+
+        {/* Academic flow */}
         <Route
           path="/manage/courses"
           element={
@@ -74,6 +79,8 @@ export default function App() {
             </ProtectedRoute>
           }
         />
+
+        {/* Admin area + shared reports */}
         <Route path="/admin/login" element={<AdminLogin />} />
         <Route
           path="/admin"

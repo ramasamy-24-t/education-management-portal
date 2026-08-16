@@ -117,13 +117,14 @@ def comparative_report(db: Session, actor: User) -> dict:
     total_students = sum(c["student_count"] for c in class_summaries)
     total_at_risk = sum(c["at_risk_count"] for c in class_summaries)
 
-    all_recommendations = (
-        db.query(AIInsight)
-        .filter(AIInsight.type == InsightType.recommendation)
-        .order_by(AIInsight.created_at.desc())
-        .limit(20)
-        .all()
-    )
+    rec_query = db.query(AIInsight).filter(AIInsight.type == InsightType.recommendation)
+    if actor.role != UserRole.admin:
+        student_ids = {student.id for cg in classes for student in enrolled_students(db, cg)}
+        if not student_ids:
+            rec_query = rec_query.filter(AIInsight.id == -1)
+        else:
+            rec_query = rec_query.filter(AIInsight.student_id.in_(student_ids))
+    all_recommendations = rec_query.order_by(AIInsight.created_at.desc()).limit(20).all()
 
     return {
         "classes": class_summaries,
@@ -168,3 +169,57 @@ def admin_insights_summary(db: Session) -> dict:
             for row in recent
         ],
     }
+
+
+def _pdf_text(value: object) -> str:
+    text = str(value or "").replace("\r", " ")
+    return text.encode("latin-1", "replace").decode("latin-1")
+
+
+def student_report_pdf(db: Session, student: User) -> bytes:
+    from fpdf import FPDF
+
+    data = student_report(db, student)
+    pdf = FPDF()
+    pdf.set_auto_page_break(auto=True, margin=14)
+    pdf.add_page()
+    width = pdf.epw
+
+    def heading(text: str) -> None:
+        pdf.set_x(pdf.l_margin)
+        pdf.set_font("Helvetica", "B", 12)
+        pdf.multi_cell(width, 8, _pdf_text(text))
+
+    def body(text: str) -> None:
+        pdf.set_x(pdf.l_margin)
+        pdf.set_font("Helvetica", "", 10)
+        pdf.multi_cell(width, 5, _pdf_text(text))
+
+    pdf.set_font("Helvetica", "B", 16)
+    pdf.set_x(pdf.l_margin)
+    pdf.multi_cell(width, 10, "Performance Report")
+    body(data["student_name"])
+    pdf.ln(2)
+    lines = [
+        f"Attendance: {data['attendance_percent']}%",
+        f"Exam average: {data['exam_average']}%",
+        f"Assignments: {data['assignments_submitted']}/{data['assignments_total']}",
+        f"At risk: {'Yes' if data['at_risk'] else 'No'}",
+    ]
+    if data.get("risk_reason"):
+        lines.append(f"Risk note: {data['risk_reason']}")
+    for line in lines:
+        body(line)
+    pdf.ln(2)
+    heading("Grades")
+    for line in data.get("grade_lines") or ["None recorded"]:
+        body(f"- {line}")
+    pdf.ln(2)
+    heading("Weak subjects")
+    for item in data.get("weak_subjects") or ["None flagged"]:
+        body(f"- {item}")
+    pdf.ln(2)
+    heading("AI recommendations")
+    for item in data.get("ai_recommendations") or ["None stored"]:
+        body(f"- {item}")
+    return bytes(pdf.output())

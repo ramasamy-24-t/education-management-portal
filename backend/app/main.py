@@ -3,7 +3,9 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
+from app.config import get_settings
 from app.db_bootstrap import ensure_schema
+from app.services.uploads import ensure_upload_dir
 
 from app.routers import (
     academic,
@@ -20,6 +22,7 @@ from app.routers import (
     faqs,
     health,
     reports,
+    schools,
     teachers,
     users,
 )
@@ -28,14 +31,16 @@ from app.routers import (
 @asynccontextmanager
 async def lifespan(_app: FastAPI):
     ensure_schema()
+    ensure_upload_dir()
     yield
 
 
 app = FastAPI(title="Education Management Portal API", version="0.1.0", lifespan=lifespan)
 
+_settings = get_settings()
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:5173", "http://127.0.0.1:5173"],
+    allow_origins=_settings.cors_origin_list,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -47,6 +52,7 @@ app.include_router(courses.router)
 app.include_router(classes.router)
 app.include_router(enrollments.router)
 app.include_router(teachers.router)
+app.include_router(schools.router)
 app.include_router(announcements.router)
 app.include_router(faqs.router)
 app.include_router(contact.router)

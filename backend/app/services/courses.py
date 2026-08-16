@@ -25,6 +25,7 @@ def _to_out(course: Course, *, student_id: int | None = None) -> CourseOut:
         schedule=course.schedule,
         rating=course.rating,
         syllabus=course.syllabus,
+        school_id=course.school_id,
         class_count=len(course.classes),
         enrollment_count=len(course.enrollments),
         enrolled=enrolled,
@@ -56,6 +57,7 @@ def list_courses(
     sort: str | None = None,
     limit: int | None = None,
     student_id: int | None = None,
+    school_id: int | None = None,
 ) -> list[CourseOut]:
     query = db.query(Course).options(
         joinedload(Course.teacher),
@@ -64,6 +66,8 @@ def list_courses(
     )
     if teacher_id:
         query = query.filter(Course.teacher_id == teacher_id)
+    if school_id:
+        query = query.filter(Course.school_id == school_id)
     if search:
         term = f"%{search.strip()}%"
         query = query.filter(
@@ -119,6 +123,7 @@ def create_course(db: Session, payload: CourseCreate, actor: User) -> CourseOut:
         description=payload.description.strip(),
         category=payload.category.strip(),
         teacher_id=teacher_id,
+        school_id=actor.school_id,
         schedule=payload.schedule.strip(),
         syllabus=payload.syllabus or "",
         rating=rating,

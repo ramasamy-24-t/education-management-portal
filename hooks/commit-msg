@@ -1,7 +1,0 @@
-#!/bin/sh
-# Strip Cursor co-author trailers before the commit is created.
-# This repo must not attribute commits to the Cursor agent.
-msg_file="$1"
-tmp="$msg_file.tmp"
-grep -viE '^[[:space:]]*(co-authored-by:.*cursor|made-with:[[:space:]]*cursor)' "$msg_file" > "$tmp"
-mv "$tmp" "$msg_file"

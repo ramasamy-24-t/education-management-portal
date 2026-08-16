@@ -1,13 +1,14 @@
 """Reports & Performance Summary endpoints."""
 
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi.responses import Response
 from sqlalchemy.orm import Session
 
 from app.database import get_db
-from app.deps import get_current_user, require_roles
+from app.deps import require_roles
 from app.models.user import User, UserRole
 from app.services import reports
-from app.services.academic_access import load_class, assert_can_manage_class
+from app.services.academic_access import assert_can_manage_class, assert_can_view_student_report, load_class
 
 router = APIRouter(prefix="/reports", tags=["reports"])
 
@@ -16,6 +17,17 @@ router = APIRouter(prefix="/reports", tags=["reports"])
 def my_report(db: Session = Depends(get_db), user: User = Depends(require_roles(UserRole.student))):
     """Student's own performance report."""
     return reports.student_report(db, user)
+
+
+@router.get("/me/pdf")
+def my_report_pdf(db: Session = Depends(get_db), user: User = Depends(require_roles(UserRole.student))):
+    content = reports.student_report_pdf(db, user)
+    filename = f"performance-report-{user.id}.pdf"
+    return Response(
+        content=content,
+        media_type="application/pdf",
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+    )
 
 
 @router.get("/student/{student_id}")
@@ -28,7 +40,27 @@ def student_report(
     student = db.query(User).filter(User.id == student_id, User.role == UserRole.student).first()
     if not student:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Student not found")
+    assert_can_view_student_report(db, user, student)
     return reports.student_report(db, student)
+
+
+@router.get("/student/{student_id}/pdf")
+def student_report_pdf(
+    student_id: int,
+    db: Session = Depends(get_db),
+    user: User = Depends(require_roles(UserRole.teacher, UserRole.admin)),
+):
+    student = db.query(User).filter(User.id == student_id, User.role == UserRole.student).first()
+    if not student:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Student not found")
+    assert_can_view_student_report(db, user, student)
+    content = reports.student_report_pdf(db, student)
+    filename = f"performance-report-{student.id}.pdf"
+    return Response(
+        content=content,
+        media_type="application/pdf",
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+    )
 
 
 @router.get("/class/{class_id}")

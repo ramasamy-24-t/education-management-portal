@@ -12,11 +12,13 @@ class Course(Base):
     description: Mapped[str] = mapped_column(Text, nullable=False)
     category: Mapped[str] = mapped_column(String(80), nullable=False, index=True)
     teacher_id: Mapped[int] = mapped_column(ForeignKey("users.id"), nullable=False, index=True)
+    school_id: Mapped[int | None] = mapped_column(ForeignKey("schools.id"), nullable=True, index=True)
     schedule: Mapped[str] = mapped_column(String(255), nullable=False)
     rating: Mapped[float] = mapped_column(Float, nullable=False, default=0.0)
     syllabus: Mapped[str] = mapped_column(Text, nullable=False, default="")
 
     teacher = relationship("User", back_populates="taught_courses")
+    school = relationship("School", back_populates="courses")
     classes = relationship("ClassGroup", back_populates="course")
     enrollments = relationship("Enrollment", back_populates="course")
 

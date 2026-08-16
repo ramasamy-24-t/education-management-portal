@@ -1,6 +1,7 @@
 from fastapi import HTTPException, status
 from sqlalchemy.orm import Session
 
+from app.models.school import School
 from app.models.user import User, UserRole
 from app.schemas.dashboard import AdminUserCreate
 from app.schemas.user import UserPublic
@@ -17,6 +18,8 @@ def create_user(db: Session, payload: AdminUserCreate, actor: User) -> UserPubli
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Admin only")
     if payload.role not in (UserRole.student.value, UserRole.teacher.value):
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Admin can only create students or teachers")
+    if payload.school_id is not None and db.get(School, payload.school_id) is None:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Select a valid school")
     email = str(payload.email)
     existing = db.query(User).filter(User.email == email).first()
     if existing:
@@ -27,6 +30,7 @@ def create_user(db: Session, payload: AdminUserCreate, actor: User) -> UserPubli
         password_hash=hash_password(payload.password),
         role=UserRole(payload.role),
         is_active=True,
+        school_id=payload.school_id,
     )
     db.add(user)
     db.commit()

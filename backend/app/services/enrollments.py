@@ -15,6 +15,11 @@ def enroll_student(db: Session, course_id: int, student: User) -> EnrollmentOut:
             detail="Only students can enroll in a course",
         )
     course = _load_course(db, course_id)
+    if student.school_id and course.school_id and student.school_id != course.school_id:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="You can only enroll in courses at your school",
+        )
     existing = (
         db.query(Enrollment)
         .filter(Enrollment.student_id == student.id, Enrollment.course_id == course.id)

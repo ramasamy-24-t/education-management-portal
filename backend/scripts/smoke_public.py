@@ -17,7 +17,7 @@ def main() -> None:
 
     info = client.get("/contact/info")
     assert info.status_code == 200
-    assert info.json()["support_email"] == "support@edu.local"
+    assert info.json()["support_email"] == "support@edu.example.com"
 
     created = client.post(
         "/contact",
@@ -32,6 +32,10 @@ def main() -> None:
     featured = client.get("/courses/top-rated?limit=4")
     teachers = client.get("/teachers/top?limit=3")
     assert featured.status_code == 200 and teachers.status_code == 200
+
+    schools = client.get("/schools")
+    assert schools.status_code == 200 and len(schools.json()) >= 2
+
     print("smoke_public: all checks passed")
 
 

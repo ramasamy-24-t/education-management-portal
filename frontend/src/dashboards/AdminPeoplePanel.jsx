@@ -2,12 +2,13 @@ import { useEffect, useState } from "react";
 import { api } from "../api/client.js";
 import { useAuth } from "../hooks/useAuth.js";
 
-const empty = { name: "", email: "", password: "", role: "student" };
+const empty = { name: "", email: "", password: "", role: "student", school_id: "" };
 
 export default function AdminPeoplePanel() {
   const { token } = useAuth();
   const [role, setRole] = useState("student");
   const [users, setUsers] = useState([]);
+  const [schools, setSchools] = useState([]);
   const [form, setForm] = useState(empty);
   const [error, setError] = useState("");
   const [message, setMessage] = useState("");
@@ -18,6 +19,12 @@ export default function AdminPeoplePanel() {
 
   useEffect(() => {
     load(role).catch((err) => setError(err.message));
+    api("/schools", { token })
+      .then((rows) => {
+        setSchools(rows);
+        if (rows[0]) setForm((prev) => ({ ...prev, school_id: String(rows[0].id) }));
+      })
+      .catch(() => {});
   }, [role, token]);
 
   async function createUser(event) {
@@ -25,7 +32,11 @@ export default function AdminPeoplePanel() {
     setError("");
     setMessage("");
     try {
-      await api("/admin/users", { method: "POST", token, body: { ...form, role } });
+      await api("/admin/users", {
+        method: "POST",
+        token,
+        body: { ...form, role, school_id: form.school_id ? Number(form.school_id) : undefined },
+      });
       setForm({ ...empty, role });
       setMessage(`${role} created.`);
       await load();
@@ -71,7 +82,7 @@ export default function AdminPeoplePanel() {
       {error ? <p className="rounded-md bg-red-50 px-3 py-2 text-sm text-red-700">{error}</p> : null}
       {message ? <p className="rounded-md bg-emerald-50 px-3 py-2 text-sm text-emerald-800">{message}</p> : null}
 
-      <form onSubmit={createUser} className="grid gap-2 md:grid-cols-4">
+      <form onSubmit={createUser} className="grid gap-2 md:grid-cols-5">
         <input
           required
           placeholder="Name"
@@ -96,6 +107,17 @@ export default function AdminPeoplePanel() {
           onChange={(event) => setForm((prev) => ({ ...prev, password: event.target.value }))}
           className="rounded-md border border-slate-300 px-3 py-2 text-sm"
         />
+        <select
+          value={form.school_id}
+          onChange={(event) => setForm((prev) => ({ ...prev, school_id: event.target.value }))}
+          className="rounded-md border border-slate-300 px-3 py-2 text-sm"
+        >
+          {schools.map((school) => (
+            <option key={school.id} value={school.id}>
+              {school.name}
+            </option>
+          ))}
+        </select>
         <button type="submit" className="rounded-md bg-slate-900 px-3 py-2 text-sm font-medium text-white">
           Create {role}
         </button>

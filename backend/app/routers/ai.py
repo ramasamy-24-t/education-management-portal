@@ -1,6 +1,3 @@
-from collections import defaultdict, deque
-from time import time
-
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
@@ -15,10 +12,6 @@ from app.services.academic_access import assert_can_manage_class
 
 router = APIRouter(prefix="/ai", tags=["ai"])
 logger = logging.getLogger(__name__)
-
-_ASSISTANT_HITS: dict[int, deque[float]] = defaultdict(deque)
-_ASSISTANT_LIMIT = 12
-_ASSISTANT_WINDOW_SECONDS = 300
 
 
 class PracticeQuestionsRequest(BaseModel):
@@ -35,20 +28,22 @@ class AssistantRequest(BaseModel):
     history: list[AssistantTurn] = Field(default_factory=list, max_length=8)
 
 
-def _assistant_rate_limited(student_id: int) -> bool:
-    now = time()
-    hits = _ASSISTANT_HITS[student_id]
-    while hits and now - hits[0] > _ASSISTANT_WINDOW_SECONDS:
-        hits.popleft()
-    if len(hits) >= _ASSISTANT_LIMIT:
-        return True
-    hits.append(now)
-    return False
-
-
 @router.get("/status")
 def ai_status():
     return {"configured": ai_service.is_configured()}
+
+
+@router.get("/study-tips")
+def study_tips(db: Session = Depends(get_db)):
+    return ai_engine.list_study_tips(db)
+
+
+@router.post("/study-tips/refresh")
+def refresh_study_tips(
+    db: Session = Depends(get_db),
+    _: User = Depends(require_roles(UserRole.teacher, UserRole.admin)),
+):
+    return ai_engine.refresh_study_tips(db)
 
 
 @router.get("/me")
@@ -81,6 +76,20 @@ def refresh_monitoring(
     return {"refreshed_classes": count}
 
 
+@router.get("/practice-questions/{student_id}")
+def list_practice_questions(
+    student_id: int,
+    db: Session = Depends(get_db),
+    user: User = Depends(require_roles(UserRole.student)),
+):
+    if user.id != student_id:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="You can only view your own practice questions",
+        )
+    return {"sets": ai_engine.list_practice_questions(db, user)}
+
+
 @router.post("/practice-questions/{student_id}")
 def practice_questions(
     student_id: int,
@@ -104,6 +113,20 @@ def practice_questions(
         }
 
 
+@router.get("/assistant/{student_id}")
+def assistant_history(
+    student_id: int,
+    db: Session = Depends(get_db),
+    user: User = Depends(require_roles(UserRole.student)),
+):
+    if user.id != student_id:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="You can only view your own assistant chat",
+        )
+    return {"messages": ai_engine.list_assistant_messages(db, user)}
+
+
 @router.post("/assistant/{student_id}")
 def assistant(
     student_id: int,
@@ -116,7 +139,7 @@ def assistant(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="You can only ask the assistant about your own progress",
         )
-    if _assistant_rate_limited(user.id):
+    if ai_engine.assistant_rate_limited(db, user.id):
         raise HTTPException(
             status_code=status.HTTP_429_TOO_MANY_REQUESTS,
             detail="Too many questions in a short time. Wait a few minutes and try again.",

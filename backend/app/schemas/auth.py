@@ -11,6 +11,7 @@ class RegisterRequest(BaseModel):
     email: EmailAddress
     password: str = Field(min_length=8, max_length=72)
     role: Literal["student", "teacher"]
+    school_id: int
 
 
 class LoginRequest(BaseModel):

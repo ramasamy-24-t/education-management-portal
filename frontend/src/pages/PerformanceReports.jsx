@@ -1,5 +1,5 @@
 import { useEffect, useState, useRef } from "react";
-import { api } from "../api/client.js";
+import { api, downloadFile } from "../api/client.js";
 import ClassSelect from "../components/ClassSelect.jsx";
 import { useAuth } from "../hooks/useAuth.js";
 
@@ -71,8 +71,17 @@ export default function PerformanceReports() {
     }
   }, [classId]);
 
-  function handlePrint() {
-    window.print();
+  async function handleDownloadPdf() {
+    try {
+      const path = isStudent ? "/reports/me/pdf" : null;
+      if (!path) {
+        window.print();
+        return;
+      }
+      await downloadFile(path, { token, filename: "performance-report.pdf" });
+    } catch (err) {
+      setError(err.message);
+    }
   }
 
   if (loading) {
@@ -91,13 +100,24 @@ export default function PerformanceReports() {
       </p>
       <div className="flex flex-wrap items-center justify-between gap-3">
         <h1 className="text-3xl font-bold print:text-2xl">Performance Reports & Summary</h1>
-        <button
-          type="button"
-          onClick={handlePrint}
-          className="rounded-md bg-slate-900 px-3 py-2 text-sm font-medium text-white print:hidden"
-        >
-          Print / Download
-        </button>
+        <div className="flex gap-2 print:hidden">
+          {isStudent ? (
+            <button
+              type="button"
+              onClick={handleDownloadPdf}
+              className="rounded-md bg-slate-900 px-3 py-2 text-sm font-medium text-white"
+            >
+              Download PDF
+            </button>
+          ) : null}
+          <button
+            type="button"
+            onClick={() => window.print()}
+            className="rounded-md border border-slate-300 px-3 py-2 text-sm font-medium"
+          >
+            Print
+          </button>
+        </div>
       </div>
 
       {error && <p className="rounded-md bg-red-50 px-3 py-2 text-sm text-red-700">{error}</p>}
@@ -115,7 +135,7 @@ export default function PerformanceReports() {
       {!isStudent && tab === "class" && (
         <>
           <ClassSelect classes={classes} value={classId} onChange={setClassId} />
-          {classReport && <ClassReportView data={classReport} />}
+          {classReport && <ClassReportView data={classReport} token={token} />}
           {!classReport && <p className="text-slate-600">Select a class to view its report.</p>}
         </>
       )}
@@ -132,6 +152,7 @@ function TabButton({ active, onClick, children }) {
     <button
       type="button"
       onClick={onClick}
+      aria-pressed={active}
       className={`rounded-md px-3 py-1.5 text-sm font-medium ${
         active ? "bg-slate-900 text-white" : "bg-slate-100 text-slate-700 hover:bg-slate-200"
       }`}
@@ -188,9 +209,24 @@ function StudentReport({ data }) {
   );
 }
 
-function ClassReportView({ data }) {
+function ClassReportView({ data, token }) {
+  const [pdfError, setPdfError] = useState("");
+
+  async function downloadStudentPdf(studentId, name) {
+    const safe = (name || "student").toLowerCase().replace(/[^a-z0-9]+/g, "-");
+    setPdfError("");
+    try {
+      await downloadFile(`/reports/student/${studentId}/pdf`, {
+        token,
+        filename: `performance-report-${safe}.pdf`,
+      });
+    } catch (err) {
+      setPdfError(err.message);
+    }
+  }
   return (
     <div className="space-y-4">
+      {pdfError ? <p className="rounded-md bg-red-50 px-3 py-2 text-sm text-red-700">{pdfError}</p> : null}
       <Card title={`Class: ${data.class_name} — ${data.course_title}`}>
         <dl className="grid gap-3 sm:grid-cols-2 md:grid-cols-4 text-sm">
           <Stat label="Students" value={data.student_count} />
@@ -225,7 +261,8 @@ function ClassReportView({ data }) {
                   <th className="py-2 pr-4">Name</th>
                   <th className="py-2 pr-4">Attendance</th>
                   <th className="py-2 pr-4">Exam Avg</th>
-                  <th className="py-2">Status</th>
+                  <th className="py-2 pr-4">Status</th>
+                  <th className="py-2 print:hidden">Report</th>
                 </tr>
               </thead>
               <tbody>
@@ -240,6 +277,15 @@ function ClassReportView({ data }) {
                       ) : (
                         <span className="rounded bg-emerald-100 px-2 py-0.5 text-emerald-800 text-xs">OK</span>
                       )}
+                    </td>
+                    <td className="py-2 print:hidden">
+                      <button
+                        type="button"
+                        onClick={() => downloadStudentPdf(s.id, s.name)}
+                        className="text-sm font-medium underline"
+                      >
+                        Download PDF
+                      </button>
                     </td>
                   </tr>
                 ))}

@@ -42,25 +42,31 @@ export default function Courses() {
       {error ? <p className="rounded-md bg-red-50 px-3 py-2 text-sm text-red-700">{error}</p> : null}
 
       <div className="flex flex-wrap gap-3">
-        <input
-          type="search"
-          placeholder="Search courses"
-          value={search}
-          onChange={(event) => setSearch(event.target.value)}
-          className="min-w-[220px] flex-1 rounded-md border border-slate-300 px-3 py-2"
-        />
-        <select
-          value={category}
-          onChange={(event) => setCategory(event.target.value)}
-          className="rounded-md border border-slate-300 px-3 py-2"
-        >
+        <label className="min-w-[220px] flex-1 text-sm">
+          <span className="sr-only">Search courses</span>
+          <input
+            type="search"
+            placeholder="Search courses"
+            value={search}
+            onChange={(event) => setSearch(event.target.value)}
+            className="w-full rounded-md border border-slate-300 px-3 py-2"
+          />
+        </label>
+        <label className="text-sm">
+          <span className="sr-only">Filter by category</span>
+          <select
+            value={category}
+            onChange={(event) => setCategory(event.target.value)}
+            className="rounded-md border border-slate-300 px-3 py-2"
+          >
           <option value="">All categories</option>
           {categories.map((item) => (
             <option key={item} value={item}>
               {item}
             </option>
           ))}
-        </select>
+          </select>
+        </label>
       </div>
 
       <div className="grid gap-6 lg:grid-cols-3">
@@ -77,7 +83,8 @@ export default function Courses() {
           )}
         </div>
         <aside className="space-y-3">
-          <h2 className="text-lg font-semibold">Top rated courses</h2>
+          <h2 className="text-lg font-semibold">Featured courses</h2>
+          <p className="text-sm text-slate-600">Ordered by catalog rating (set when the course was created).</p>
           <div className="space-y-3">
             {topRated.map((course) => (
               <CourseCard key={course.id} course={course} />

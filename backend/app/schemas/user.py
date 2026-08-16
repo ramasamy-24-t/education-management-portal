@@ -14,6 +14,7 @@ class UserPublic(BaseModel):
     email: EmailAddress
     role: UserRole
     is_active: bool = True
+    school_id: int | None = None
     created_at: datetime
 
 

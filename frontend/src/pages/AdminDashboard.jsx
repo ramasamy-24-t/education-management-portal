@@ -1,4 +1,5 @@
 import { Link } from "react-router-dom";
+import AdminContactPanel from "../dashboards/AdminContactPanel.jsx";
 import AdminInsightsPanel from "../dashboards/AdminInsightsPanel.jsx";
 import AdminPeoplePanel from "../dashboards/AdminPeoplePanel.jsx";
 import { useAuth } from "../hooks/useAuth.js";
@@ -15,13 +16,14 @@ export default function AdminDashboard() {
       </p>
 
       <AdminPeoplePanel />
+      <AdminContactPanel />
 
       <div className="grid gap-3 md:grid-cols-2">
         <AdminLink to="/manage/courses" title="Manage courses & classes" body="Create, edit, and delete courses and class sections." />
         <AdminLink to="/assignments" title="Manage assignments" body="Create assignments and grade submissions for any class." />
         <AdminLink to="/exams" title="Manage exams & grades" body="Create exams and record marks per student." />
         <AdminLink to="/attendance" title="Attendance" body="Mark and review attendance for any class." />
-        <AdminLink to="/reports" title="View reports & analytics" body="Opens Performance Reports. Full analytics land in Prompt 7." />
+        <AdminLink to="/reports" title="View reports & analytics" body="Class, comparative, and AI insight summaries, plus print and PDF download." />
       </div>
 
       <AdminInsightsPanel />

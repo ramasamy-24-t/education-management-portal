@@ -1,4 +1,5 @@
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Depends, File, Form, Query, UploadFile
+from fastapi.responses import FileResponse
 from sqlalchemy.orm import Session
 
 from app.database import get_db
@@ -7,7 +8,6 @@ from app.models.user import User, UserRole
 from app.schemas.academic import (
     AssignmentCreate,
     AssignmentOut,
-    SubmissionCreate,
     SubmissionGrade,
     SubmissionOut,
 )
@@ -40,17 +40,18 @@ def get_assignment(
     db: Session = Depends(get_db),
     user: User = Depends(get_current_user),
 ):
-    return assignment_service._assignment_out(assignment_service.get_assignment(db, assignment_id, user))
+    return assignment_service.assignment_out(assignment_service.get_assignment(db, assignment_id, user))
 
 
 @router.post("/assignments/{assignment_id}/submissions", response_model=SubmissionOut, status_code=201)
 def submit_assignment(
     assignment_id: int,
-    payload: SubmissionCreate,
+    content: str = Form(default=""),
+    file: UploadFile | None = File(default=None),
     db: Session = Depends(get_db),
     user: User = Depends(require_roles(UserRole.student)),
 ):
-    return assignment_service.submit_assignment(db, assignment_id, payload, user)
+    return assignment_service.submit_assignment(db, assignment_id, user, content=content, upload=file)
 
 
 @router.get("/assignments/{assignment_id}/submissions", response_model=list[SubmissionOut])
@@ -78,3 +79,13 @@ def my_submissions(
     user: User = Depends(require_roles(UserRole.student)),
 ):
     return assignment_service.my_submissions(db, user)
+
+
+@router.get("/submissions/{submission_id}/file")
+def download_submission_file(
+    submission_id: int,
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    path, filename = assignment_service.get_submission_file(db, submission_id, user)
+    return FileResponse(path, filename=filename)

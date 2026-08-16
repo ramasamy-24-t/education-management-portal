@@ -16,6 +16,12 @@ def _student_id(user: User | None) -> int | None:
     return None
 
 
+def _school_id(user: User | None) -> int | None:
+    if user and user.role in (UserRole.student, UserRole.teacher) and user.school_id:
+        return user.school_id
+    return None
+
+
 @router.get("", response_model=list[CourseOut])
 def list_courses(
     search: str | None = Query(default=None),
@@ -34,6 +40,7 @@ def list_courses(
         sort=sort,
         limit=limit,
         student_id=_student_id(user),
+        school_id=_school_id(user),
     )
 
 
@@ -43,7 +50,9 @@ def top_rated(
     db: Session = Depends(get_db),
     user: User | None = Depends(get_optional_user),
 ):
-    return course_service.list_courses(db, sort="rating", limit=limit, student_id=_student_id(user))
+    return course_service.list_courses(
+        db, sort="rating", limit=limit, student_id=_student_id(user), school_id=_school_id(user)
+    )
 
 
 @router.get("/categories", response_model=list[str])

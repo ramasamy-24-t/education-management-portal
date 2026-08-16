@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { api } from "../api/client.js";
+import { api, apiForm, downloadFile } from "../api/client.js";
 import ClassSelect from "../components/ClassSelect.jsx";
 import { useAuth } from "../hooks/useAuth.js";
 
@@ -15,6 +15,7 @@ export default function Assignments({ embedded = false }) {
   const [activeId, setActiveId] = useState(null);
   const [submissions, setSubmissions] = useState([]);
   const [content, setContent] = useState("");
+  const [file, setFile] = useState(null);
   const [gradeForm, setGradeForm] = useState({});
   const [error, setError] = useState("");
   const [message, setMessage] = useState("");
@@ -77,12 +78,12 @@ export default function Assignments({ embedded = false }) {
     setError("");
     setMessage("");
     try {
-      await api(`/assignments/${activeId}/submissions`, {
-        method: "POST",
-        token,
-        body: { content },
-      });
+      const formData = new FormData();
+      formData.append("content", content);
+      if (file) formData.append("file", file);
+      await apiForm(`/assignments/${activeId}/submissions`, { token, formData });
       setContent("");
+      setFile(null);
       setMessage("Submission saved.");
       setSubmissions(await api(`/assignments/${activeId}/submissions`, { token }));
     } catch (err) {
@@ -116,7 +117,7 @@ export default function Assignments({ embedded = false }) {
       <p className="text-slate-600">
         {canCreate
           ? "Create assignments with due dates and grade student submissions. Saving a grade also writes AI feedback for the student."
-          : "View due dates and submit your work. You cannot grade your own assignment."}
+          : "View due dates and submit your work (text and optional file). You cannot grade your own assignment."}
       </p>
 
       {error ? <p className="rounded-md bg-red-50 px-3 py-2 text-sm text-red-700">{error}</p> : null}
@@ -187,12 +188,16 @@ export default function Assignments({ embedded = false }) {
           {user.role === "student" && active ? (
             <form onSubmit={submitWork} className="space-y-2 rounded-xl border border-slate-200 bg-white p-4">
               <textarea
-                required
                 rows={4}
                 value={content}
                 onChange={(event) => setContent(event.target.value)}
                 placeholder="Write your submission"
                 className="w-full rounded-md border border-slate-300 px-3 py-2"
+              />
+              <input
+                type="file"
+                onChange={(event) => setFile(event.target.files?.[0] || null)}
+                className="w-full text-sm"
               />
               <button type="submit" className="rounded-md bg-slate-900 px-3 py-2 text-sm font-medium text-white">
                 Submit assignment
@@ -204,6 +209,17 @@ export default function Assignments({ embedded = false }) {
             <article key={row.id} className="rounded-xl border border-slate-200 bg-white p-4 text-sm">
               <p className="font-medium">{row.student_name}</p>
               <p className="mt-1 text-slate-700">{row.content}</p>
+              {row.file_url ? (
+                <button
+                  type="button"
+                  onClick={() =>
+                    downloadFile(row.file_url, { token, filename: row.original_filename || "attachment" })
+                  }
+                  className="mt-1 text-sm font-medium underline"
+                >
+                  Download {row.original_filename || "attachment"}
+                </button>
+              ) : null}
               <p className="mt-2 text-slate-600">
                 Grade: {row.grade ?? "—"} · Feedback: {row.feedback || "—"}
               </p>

@@ -28,6 +28,13 @@ class Settings(BaseSettings):
     azure_ai_model: str = "model-router"
     azure_ai_api_version: str = "v1"
     azure_ai_timeout_seconds: float = 20
+    cors_origins: str = "http://localhost:5173,http://127.0.0.1:5173"
+    public_app_url: str = "http://localhost:5173"
+    insight_stale_minutes: int = 10
+
+    @property
+    def cors_origin_list(self) -> list[str]:
+        return [item.strip() for item in self.cors_origins.split(",") if item.strip()]
 
     @property
     def azure_key(self) -> str:

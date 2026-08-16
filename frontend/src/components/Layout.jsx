@@ -12,12 +12,18 @@ export default function Layout() {
 
   return (
     <div className="min-h-screen">
+      <a
+        href="#main-content"
+        className="sr-only focus:not-sr-only focus:absolute focus:left-4 focus:top-4 focus:z-50 focus:rounded-md focus:bg-slate-900 focus:px-3 focus:py-2 focus:text-sm focus:text-white"
+      >
+        Skip to main content
+      </a>
       <header className="border-b border-slate-200 bg-white">
         <div className="mx-auto flex max-w-6xl flex-wrap items-center justify-between gap-3 px-4 py-3">
           <NavLink to="/" className="text-lg font-semibold text-slate-900">
             Education Management Portal
           </NavLink>
-          <nav className="flex flex-wrap items-center gap-1">
+          <nav className="flex flex-wrap items-center gap-1" aria-label="Main">
             <NavLink to="/" className={linkClass} end>
               Home
             </NavLink>
@@ -87,7 +93,7 @@ export default function Layout() {
           </nav>
         </div>
       </header>
-      <main className="mx-auto max-w-6xl px-4 py-8">
+      <main id="main-content" tabIndex={-1} className="mx-auto max-w-6xl px-4 py-8 outline-none">
         <Outlet />
       </main>
       <AssistantChat />

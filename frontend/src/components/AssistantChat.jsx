@@ -19,6 +19,13 @@ export default function AssistantChat() {
   }, [messages, sending, open]);
 
   useEffect(() => {
+    if (!user || user.role !== "student" || !token) return undefined;
+    api(`/ai/assistant/${user.id}`, { token })
+      .then((payload) => setMessages(payload.messages || []))
+      .catch(() => {});
+  }, [user, token]);
+
+  useEffect(() => {
     if (open) inputRef.current?.focus();
   }, [open]);
 
@@ -105,6 +112,7 @@ export default function AssistantChat() {
                 value={draft}
                 onChange={(event) => setDraft(event.target.value)}
                 maxLength={500}
+                aria-label="Question for the study assistant"
                 placeholder="Ask a question…"
                 className="min-w-0 flex-1 rounded-full border border-slate-200 px-3 py-2 text-sm"
               />
@@ -124,6 +132,7 @@ export default function AssistantChat() {
         type="button"
         onClick={() => setOpen((prev) => !prev)}
         className="ml-auto flex h-14 w-14 items-center justify-center rounded-full bg-black text-white shadow-lg shadow-black/30 transition hover:scale-105"
+        aria-expanded={open}
         aria-label={open ? "Close study assistant" : "Open study assistant"}
       >
         {open ? (

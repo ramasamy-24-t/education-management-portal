@@ -29,7 +29,7 @@ export default function Contact() {
     try {
       await api("/contact", { method: "POST", body: form });
       setForm(emptyForm);
-      setSuccess("Message sent. An admin will follow up by email.");
+      setSuccess("Message sent. It is stored for the admin team to review in the portal.");
     } catch (err) {
       setError(err.message);
     } finally {
@@ -145,6 +145,7 @@ export default function Contact() {
                   <button
                     type="button"
                     onClick={() => setOpenFaq(open ? null : item.id)}
+                    aria-expanded={open}
                     className="flex w-full items-center justify-between px-4 py-3 text-left font-medium"
                   >
                     {item.question}

@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
+import json
 
 from dotenv import load_dotenv
 from sqlalchemy import create_engine, text
@@ -13,6 +14,7 @@ from sqlalchemy.orm import Session
 load_dotenv(Path(__file__).resolve().parent / ".env")
 
 from app.config import get_settings  # noqa: E402
+from app.constants import DEFAULT_SCHOOL_NAME, DEFAULT_SCHOOL_SLUG, DEMO_EMAIL_DOMAIN, SECOND_SCHOOL_NAME, SECOND_SCHOOL_SLUG, questions_for_course  # noqa: E402
 from app.database import Base  # noqa: E402
 from app.models import (  # noqa: E402
     AIInsight,
@@ -30,6 +32,7 @@ from app.models import (  # noqa: E402
     FAQ,
     Grade,
     InsightType,
+    School,
     User,
     UserRole,
 )
@@ -58,24 +61,31 @@ def seed(session: Session) -> None:
         return
 
     hash_pw = hash_password(DEFAULT_PASSWORD)
+    domain = DEMO_EMAIL_DOMAIN
+
+    campus = School(name=DEFAULT_SCHOOL_NAME, slug=DEFAULT_SCHOOL_SLUG)
+    riverside = School(name=SECOND_SCHOOL_NAME, slug=SECOND_SCHOOL_SLUG)
+    session.add_all([campus, riverside])
+    session.flush()
 
     admin = User(
         name="Asha Menon",
-        email="admin@edu.local",
+        email=f"admin@{domain}",
         password_hash=hash_pw,
         role=UserRole.admin,
+        school_id=campus.id,
     )
     teachers = [
-        User(name="Dr. Priya Nair", email="priya.nair@edu.local", password_hash=hash_pw, role=UserRole.teacher),
-        User(name="Prof. Arjun Mehta", email="arjun.mehta@edu.local", password_hash=hash_pw, role=UserRole.teacher),
-        User(name="Ms. Kavya Reddy", email="kavya.reddy@edu.local", password_hash=hash_pw, role=UserRole.teacher),
+        User(name="Dr. Priya Nair", email=f"priya.nair@{domain}", password_hash=hash_pw, role=UserRole.teacher, school_id=campus.id),
+        User(name="Prof. Arjun Mehta", email=f"arjun.mehta@{domain}", password_hash=hash_pw, role=UserRole.teacher, school_id=campus.id),
+        User(name="Ms. Kavya Reddy", email=f"kavya.reddy@{domain}", password_hash=hash_pw, role=UserRole.teacher, school_id=campus.id),
     ]
     students = [
-        User(name="Rohan Sharma", email="rohan.sharma@edu.local", password_hash=hash_pw, role=UserRole.student),
-        User(name="Ananya Iyer", email="ananya.iyer@edu.local", password_hash=hash_pw, role=UserRole.student),
-        User(name="Vikram Patel", email="vikram.patel@edu.local", password_hash=hash_pw, role=UserRole.student),
-        User(name="Meera Joshi", email="meera.joshi@edu.local", password_hash=hash_pw, role=UserRole.student),
-        User(name="Sahil Khan", email="sahil.khan@edu.local", password_hash=hash_pw, role=UserRole.student),
+        User(name="Rohan Sharma", email=f"rohan.sharma@{domain}", password_hash=hash_pw, role=UserRole.student, school_id=campus.id),
+        User(name="Ananya Iyer", email=f"ananya.iyer@{domain}", password_hash=hash_pw, role=UserRole.student, school_id=campus.id),
+        User(name="Vikram Patel", email=f"vikram.patel@{domain}", password_hash=hash_pw, role=UserRole.student, school_id=campus.id),
+        User(name="Meera Joshi", email=f"meera.joshi@{domain}", password_hash=hash_pw, role=UserRole.student, school_id=campus.id),
+        User(name="Sahil Khan", email=f"sahil.khan@{domain}", password_hash=hash_pw, role=UserRole.student, school_id=campus.id),
     ]
     session.add_all([admin, *teachers, *students])
     session.flush()
@@ -141,6 +151,7 @@ def seed(session: Session) -> None:
             description=item["description"],
             category=item["category"],
             teacher_id=item["teacher"].id,
+            school_id=campus.id,
             schedule=item["schedule"],
             rating=item["rating"],
             syllabus=item["syllabus"],
@@ -173,7 +184,7 @@ def seed(session: Session) -> None:
             for student, idxs in enroll_map
             if courses.index(course) in idxs
         ]
-        for day_offset in range(5):
+        for day_offset in range(28):
             day = today - timedelta(days=day_offset + 1)
             for i, student in enumerate(enrolled_students):
                 status = AttendanceStatus.present
@@ -237,17 +248,35 @@ def seed(session: Session) -> None:
 
     exams: list[Exam] = []
     for class_group, course in zip(classes, courses):
+        questions_payload = json.dumps(questions_for_course(course.title, course.category))
         exam = Exam(
             class_id=class_group.id,
             title=f"{course.title} Midterm",
-            date=today - timedelta(days=10),
+            date=today - timedelta(days=5),
             max_marks=100,
+            questions_json=questions_payload,
         )
-        session.add(exam)
+        checkpoint = Exam(
+            class_id=class_group.id,
+            title=f"{course.title} Checkpoint",
+            date=today - timedelta(days=20),
+            max_marks=100,
+            questions_json=questions_payload,
+        )
+        live = Exam(
+            class_id=class_group.id,
+            title=f"{course.title} Practice Quiz",
+            date=today,
+            max_marks=100,
+            questions_json=questions_payload,
+        )
+        session.add_all([exam, checkpoint, live])
         exams.append(exam)
+        exams.append(checkpoint)
     session.flush()
 
-    for exam, course in zip(exams, courses):
+    for exam in exams:
+        course = next(c for c, cl in zip(courses, classes) if cl.id == exam.class_id)
         enrolled_students = [
             student
             for student, idxs in enroll_map
@@ -283,7 +312,7 @@ def seed(session: Session) -> None:
             ),
             FAQ(
                 question="How do I contact support?",
-                answer="Use the Contact form on the Contact page. An admin will follow up by email.",
+                answer="Use the Contact form on the Contact page. Messages are stored for admins to review on the Admin Dashboard.",
             ),
         ]
     )
@@ -354,9 +383,9 @@ def seed(session: Session) -> None:
     session.commit()
     print("Seed complete.")
     print("All accounts use password: password123")
-    print("Admin:   admin@edu.local")
-    print("Teacher: priya.nair@edu.local")
-    print("Student: rohan.sharma@edu.local")
+    print(f"Admin:   admin@{DEMO_EMAIL_DOMAIN}")
+    print(f"Teacher: priya.nair@{DEMO_EMAIL_DOMAIN}")
+    print(f"Student: rohan.sharma@{DEMO_EMAIL_DOMAIN}")
 
 
 def main() -> None:

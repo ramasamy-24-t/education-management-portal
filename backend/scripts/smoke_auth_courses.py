@@ -1,5 +1,7 @@
 """Quick smoke checks for auth + course ownership. Run from backend/: python scripts/smoke_auth_courses.py"""
 
+from uuid import uuid4
+
 from fastapi.testclient import TestClient
 
 from app.main import app
@@ -8,18 +10,18 @@ client = TestClient(app)
 
 
 def main() -> None:
-    student = client.post("/auth/login", json={"email": "rohan.sharma@edu.local", "password": "password123"})
+    student = client.post("/auth/login", json={"email": "rohan.sharma@edu.example.com", "password": "password123"})
     assert student.status_code == 200, student.text
     student_token = student.json()["access_token"]
 
-    admin_on_user = client.post("/auth/login", json={"email": "admin@edu.local", "password": "password123"})
+    admin_on_user = client.post("/auth/login", json={"email": "admin@edu.example.com", "password": "password123"})
     assert admin_on_user.status_code == 403, admin_on_user.text
 
-    admin = client.post("/auth/admin/login", json={"email": "admin@edu.local", "password": "password123"})
+    admin = client.post("/auth/admin/login", json={"email": "admin@edu.example.com", "password": "password123"})
     assert admin.status_code == 200, admin.text
 
-    teacher = client.post("/auth/login", json={"email": "priya.nair@edu.local", "password": "password123"})
-    other = client.post("/auth/login", json={"email": "arjun.mehta@edu.local", "password": "password123"})
+    teacher = client.post("/auth/login", json={"email": "priya.nair@edu.example.com", "password": "password123"})
+    other = client.post("/auth/login", json={"email": "arjun.mehta@edu.example.com", "password": "password123"})
     assert teacher.status_code == 200 and other.status_code == 200
     teacher_token = teacher.json()["access_token"]
     other_token = other.json()["access_token"]
@@ -82,6 +84,25 @@ def main() -> None:
 
     deleted = client.delete(f"/courses/{course_id}", headers={"Authorization": f"Bearer {teacher_token}"})
     assert deleted.status_code == 204, deleted.text
+
+    schools = client.get("/schools")
+    assert schools.status_code == 200 and schools.json()
+    school_id = schools.json()[0]["id"]
+    email = f"register.smoke.{uuid4().hex[:10]}@edu.example.com"
+    registered = client.post(
+        "/auth/register",
+        json={
+            "name": "Register Smoke",
+            "email": email,
+            "password": "password123",
+            "role": "student",
+            "school_id": school_id,
+        },
+    )
+    assert registered.status_code == 201, registered.text
+    assert registered.json().get("access_token")
+    signed_in = client.post("/auth/login", json={"email": email, "password": "password123"})
+    assert signed_in.status_code == 200, signed_in.text
 
     print("smoke_auth_courses: all checks passed")
 

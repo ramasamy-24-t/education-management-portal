@@ -16,7 +16,7 @@ node_modules/
 dist/
 .vite/
 
-# OS / IDE
+uploads/
 .DS_Store
 Thumbs.db
 .idea/

@@ -17,6 +17,8 @@ export default function Exams({ embedded = false }) {
   const [roster, setRoster] = useState([]);
   const [marks, setMarks] = useState({});
   const [grades, setGrades] = useState([]);
+  const [paper, setPaper] = useState(null);
+  const [answers, setAnswers] = useState([]);
   const [error, setError] = useState("");
   const [message, setMessage] = useState("");
 
@@ -59,7 +61,7 @@ export default function Exams({ embedded = false }) {
         },
       });
       setForm(emptyExam);
-      setMessage("Exam created. Record marks for each student — this is not a live exam-taking UI.");
+      setMessage("Exam created with a short multiple-choice paper. Students can take it, or you can record marks.");
       await loadExams();
     } catch (err) {
       setError(err.message);
@@ -69,6 +71,7 @@ export default function Exams({ embedded = false }) {
   async function openExam(examId) {
     setActiveId(examId);
     setError("");
+    setPaper(null);
     try {
       const nextGrades = await api(`/exams/${examId}/grades`, { token });
       setGrades(nextGrades);
@@ -81,7 +84,30 @@ export default function Exams({ embedded = false }) {
           nextMarks[student.id] = existing ? String(existing.marks_obtained) : "";
         });
         setMarks(nextMarks);
+      } else {
+        const nextPaper = await api(`/exams/${examId}/paper`, { token });
+        setPaper(nextPaper);
+        setAnswers(nextPaper.questions.map(() => ""));
       }
+    } catch (err) {
+      setError(err.message);
+    }
+  }
+
+  async function submitAttempt(event) {
+    event.preventDefault();
+    setError("");
+    setMessage("");
+    try {
+      const payload = await api(`/exams/${activeId}/attempts`, {
+        method: "POST",
+        token,
+        body: { answers: answers.map((value) => Number(value)) },
+      });
+      setMessage(`Submitted. Score ${payload.score}/${payload.max_marks} (${payload.percent}%).`);
+      setPaper(await api(`/exams/${activeId}/paper`, { token }));
+      setGrades(await api(`/exams/${activeId}/grades`, { token }));
+      setHistory(await api("/grades/me", { token }));
     } catch (err) {
       setError(err.message);
     }
@@ -112,8 +138,8 @@ export default function Exams({ embedded = false }) {
       <h1 className={embedded ? "text-xl font-bold" : "text-3xl font-bold"}>Exams & Grades</h1>
       <p className="text-slate-600">
         {canManage
-          ? "Create an exam, then record marks per student. Saving marks also writes an exam analysis (summary and weak topics)."
-          : "View your grades, exam analysis, and full grade history."}
+          ? "Create an exam with a multiple-choice paper. Students can take it live, or you can record marks. Saving marks also writes an exam analysis."
+          : "Take available exams, then view your grades, exam analysis, and full grade history."}
       </p>
 
       {error ? <p className="rounded-md bg-red-50 px-3 py-2 text-sm text-red-700">{error}</p> : null}
@@ -167,6 +193,8 @@ export default function Exams({ embedded = false }) {
               <p className="font-medium">{exam.title}</p>
               <p className="text-sm text-slate-600">
                 {exam.date} · max {exam.max_marks}
+                {exam.question_count ? ` · ${exam.question_count} questions` : ""}
+                {exam.attempted ? " · submitted" : ""}
               </p>
             </button>
           ))}
@@ -174,6 +202,44 @@ export default function Exams({ embedded = false }) {
 
         <div className="space-y-3">
           <h2 className="font-semibold">View grades</h2>
+          {user.role === "student" && paper && !paper.already_attempted && !paper.has_grade && paper.questions.length ? (
+            <form onSubmit={submitAttempt} className="space-y-3 rounded-xl border border-slate-200 bg-white p-4">
+              <h3 className="font-medium">Take exam: {paper.title}</h3>
+              {paper.questions.map((question, index) => (
+                <fieldset key={`${question.prompt}-${index}`} className="space-y-1 text-sm">
+                  <legend className="font-medium">
+                    {index + 1}. {question.prompt}
+                  </legend>
+                  {question.options.map((option, optionIndex) => (
+                    <label key={option} className="flex items-center gap-2">
+                      <input
+                        type="radio"
+                        name={`q-${index}`}
+                        required
+                        checked={String(answers[index]) === String(optionIndex)}
+                        onChange={() =>
+                          setAnswers((prev) => {
+                            const next = [...prev];
+                            next[index] = optionIndex;
+                            return next;
+                          })
+                        }
+                      />
+                      {option}
+                    </label>
+                  ))}
+                </fieldset>
+              ))}
+              <button type="submit" className="rounded-md bg-slate-900 px-3 py-2 text-sm font-medium text-white">
+                Submit exam
+              </button>
+            </form>
+          ) : null}
+
+          {user.role === "student" && paper && (paper.already_attempted || paper.has_grade) ? (
+            <p className="text-sm text-slate-600">You already have a result for this exam.</p>
+          ) : null}
+
           {canManage && activeId ? (
             <form onSubmit={saveMarks} className="space-y-2 rounded-xl border border-slate-200 bg-white p-4">
               {roster.map((student) => (

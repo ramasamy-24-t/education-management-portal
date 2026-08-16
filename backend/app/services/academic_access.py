@@ -66,6 +66,28 @@ def list_accessible_classes(db: Session, actor: User) -> list[ClassGroup]:
     return query.order_by(Course.title.asc(), ClassGroup.name.asc()).all()
 
 
+def assert_can_view_student_report(db: Session, actor: User, student: User) -> None:
+    """Teachers may only open reports for students enrolled in a course they teach."""
+    if actor.role == UserRole.admin:
+        return
+    if actor.role != UserRole.teacher:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="You cannot view this student's report",
+        )
+    shared = (
+        db.query(Enrollment)
+        .join(Course, Course.id == Enrollment.course_id)
+        .filter(Enrollment.student_id == student.id, Course.teacher_id == actor.id)
+        .first()
+    )
+    if shared is None:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="You can only view reports for students in your classes",
+        )
+
+
 def can_view_class(db: Session, class_group: ClassGroup, actor: User) -> bool:
     if actor.role == UserRole.admin:
         return True

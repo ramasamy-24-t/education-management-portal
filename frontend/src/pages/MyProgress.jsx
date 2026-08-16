@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import { Link } from "react-router-dom";
 import { api } from "../api/client.js";
 import RiskTrend from "../components/RiskTrend.jsx";
 import { useAuth } from "../hooks/useAuth.js";
@@ -42,19 +43,23 @@ export default function MyProgress() {
       <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">User Area</p>
       <div className="flex flex-wrap items-center justify-between gap-3">
         <h1 className="text-3xl font-bold">My Progress</h1>
-        <button
-          type="button"
-          onClick={refresh}
-          disabled={pending}
-          className="rounded-md bg-slate-900 px-3 py-2 text-sm font-medium text-white disabled:opacity-60"
-        >
-          {pending ? "Refreshing…" : "Refresh AI insights"}
-        </button>
+        <div className="flex flex-wrap gap-2">
+          <Link to="/reports" className="rounded-md border border-slate-300 px-3 py-2 text-sm font-medium">
+            Open reports
+          </Link>
+          <button
+            type="button"
+            onClick={refresh}
+            disabled={pending}
+            className="rounded-md bg-slate-900 px-3 py-2 text-sm font-medium text-white disabled:opacity-60"
+          >
+            {pending ? "Refreshing…" : "Refresh AI insights"}
+          </button>
+        </div>
       </div>
       <p className="text-slate-600">
-        Performance numbers come from your attendance, assignments, and exams. Insights are stored in the AI Engine
-        and reused so pages stay up if Azure is unavailable. Use the robot button at the bottom right to ask about your
-        progress.
+        Performance numbers come from your attendance, assignments, and exams. The AI Engine stores insights and
+        refreshes them automatically when they are older than 10 minutes. Use Refresh if you want a new analysis now.
       </p>
 
       {error ? <p className="rounded-md bg-red-50 px-3 py-2 text-sm text-red-700">{error}</p> : null}
@@ -82,7 +87,7 @@ export default function MyProgress() {
           <div className="rounded-xl border border-amber-200 bg-amber-50 p-5">
             <h2 className="text-lg font-semibold text-amber-950">At-risk trend</h2>
             <p className="mt-1 text-sm text-amber-900">
-              Compares the last 3 days with the 3 days before that. Shown next to the at-risk insight — never guessed
+              Compares the last 14 days with the 14 days before that. Shown next to the at-risk insight — never guessed
               when a window is empty.
             </p>
             <RiskTrend trend={data.risk_trend} reason={data.risk_trend_reason} />
@@ -112,6 +117,23 @@ function Item({ label, value }) {
 
 function WeakSubjectsCard({ items, studentId, token }) {
   const [bySubject, setBySubject] = useState({});
+
+  useEffect(() => {
+    api(`/ai/practice-questions/${studentId}`, { token })
+      .then((payload) => {
+        const next = {};
+        for (const row of payload.sets || []) {
+          next[row.subject] = {
+            status: "ok",
+            questions: row.questions || [],
+            source: row.source,
+            error: "",
+          };
+        }
+        setBySubject(next);
+      })
+      .catch(() => {});
+  }, [studentId, token]);
 
   async function generate(subject) {
     setBySubject((prev) => ({

@@ -21,9 +21,9 @@ def auth(value: str) -> dict:
 
 
 def main() -> None:
-    teacher = token("priya.nair@edu.local")
-    other = token("arjun.mehta@edu.local")
-    student = token("rohan.sharma@edu.local")
+    teacher = token("priya.nair@edu.example.com")
+    other = token("arjun.mehta@edu.example.com")
+    student = token("rohan.sharma@edu.example.com")
 
     classes = client.get("/academic/classes", headers=auth(teacher))
     assert classes.status_code == 200 and classes.json(), classes.text
@@ -31,7 +31,7 @@ def main() -> None:
 
     roster = client.get(f"/academic/classes/{class_id}/students", headers=auth(teacher))
     assert roster.status_code == 200 and roster.json(), roster.text
-    student_id = next(row["id"] for row in roster.json() if row["email"] == "rohan.sharma@edu.local")
+    student_id = next(row["id"] for row in roster.json() if row["email"] == "rohan.sharma@edu.example.com")
 
     marked = client.post(
         "/attendance/mark",
@@ -89,7 +89,7 @@ def main() -> None:
     submitted = client.post(
         f"/assignments/{assignment_id}/submissions",
         headers=auth(student),
-        json={"content": "My smoke submission."},
+        data={"content": "My smoke submission."},
     )
     assert submitted.status_code == 201, submitted.text
     submission_id = submitted.json()["id"]
@@ -136,6 +136,30 @@ def main() -> None:
     history = client.get("/grades/me", headers=auth(student))
     assert history.status_code == 200
     assert any(row["exam_id"] == exam_id for row in history.json())
+
+    live = client.post(
+        "/exams",
+        headers=auth(teacher),
+        json={"class_id": class_id, "title": "Live Quiz", "date": date.today().isoformat(), "max_marks": 40},
+    )
+    assert live.status_code == 201, live.text
+    live_id = live.json()["id"]
+    paper = client.get(f"/exams/{live_id}/paper", headers=auth(student))
+    assert paper.status_code == 200, paper.text
+    questions = paper.json()["questions"]
+    assert len(questions) >= 3
+    attempt = client.post(
+        f"/exams/{live_id}/attempts",
+        headers=auth(student),
+        json={"answers": [1] * len(questions)},
+    )
+    assert attempt.status_code == 201, attempt.text
+    assert "score" in attempt.json()
+
+    pdf = client.get("/reports/me/pdf", headers=auth(student))
+    assert pdf.status_code == 200, pdf.text
+    assert pdf.headers["content-type"].startswith("application/pdf")
+    assert pdf.content[:4] == b"%PDF"
 
     print("smoke_academic: all checks passed")
 

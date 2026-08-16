@@ -1,4 +1,4 @@
-/** Static rotating tips for the Home Page "AI Study Tips" box. Not model-generated. */
+/** Fallback tips if GET /ai/study-tips is unavailable. */
 export const STUDY_TIPS = [
   "Review yesterday's notes for 10 minutes before starting new material.",
   "After each lecture, write three questions you still cannot answer.",

@@ -6,22 +6,32 @@ from datetime import date, datetime, timedelta, timezone
 
 from sqlalchemy.orm import Session, joinedload
 
+from app.config import get_settings
+from app.constants import FALLBACK_STUDY_TIPS
 from app.models.ai_insight import AIInsight, InsightType
 from app.models.assignment import AssignmentSubmission
+from app.models.assistant import AssistantMessage, AssistantRateHit
 from app.models.attendance import Attendance, AttendanceStatus
 from app.models.course import ClassGroup
 from app.models.exam import Exam, ExamAnalysis, Grade
+from app.models.practice import PracticeQuestionSet
+from app.models.study_tip import StudyTip
 from app.models.user import User, UserRole
 from app.services import ai_service
 from app.services.academic_access import enrolled_students, list_accessible_classes
 
 AT_RISK_ATTENDANCE = 70.0
 AT_RISK_EXAM = 60.0
-STALE_AFTER = timedelta(hours=6)
-# Seed attendance is 5 consecutive days; 2-week windows would always be empty.
-TREND_WINDOW_DAYS = 3
+TREND_WINDOW_DAYS = 14
 TREND_VALUES = ("improving", "worsening", "stable")
 NOT_ENOUGH_DATA = "Not enough data yet"
+ASSISTANT_LIMIT = 12
+ASSISTANT_WINDOW_SECONDS = 300
+
+
+def _stale_after():
+    minutes = max(1, get_settings().insight_stale_minutes)
+    return timedelta(minutes=minutes)
 
 
 def _now() -> datetime:
@@ -77,7 +87,7 @@ def _is_fresh(row: AIInsight | None) -> bool:
     created = row.created_at
     if created.tzinfo is None:
         created = created.replace(tzinfo=timezone.utc)
-    return _now() - created < STALE_AFTER
+    return _now() - created < _stale_after()
 
 
 def student_snapshot(db: Session, student: User) -> dict:
@@ -523,11 +533,15 @@ def refresh_monitoring(db: Session, actor: User) -> int:
     classes = list_accessible_classes(db, actor)
     for class_group in classes:
         refresh_class_insight(db, class_group, force=True)
+    if actor.role == UserRole.admin:
+        refresh_study_tips(db)
     return len(classes)
 
 
 def generate_practice_questions(db: Session, student: User, subject: str) -> dict:
-    """Fresh 3–4 questions each call. Not stored — regenerate on click."""
+    """Generate 3–4 questions and persist the latest set per subject."""
+    import json
+
     cleaned = (subject or "").strip()
     if not cleaned:
         return {"subject": "", "questions": [], "source": "error", "detail": "Pick a weak subject first."}
@@ -546,26 +560,72 @@ def generate_practice_questions(db: Session, student: User, subject: str) -> dic
         f"Exam analysis weak topics: {topic_text}"
     )
     questions: list[str] = []
+    source = "fallback"
     if isinstance(parsed, dict) and isinstance(parsed.get("questions"), list):
         questions = [str(item).strip() for item in parsed["questions"] if str(item).strip()]
+        source = "model"
     elif isinstance(parsed, list):
         questions = [str(item).strip() for item in parsed if str(item).strip()]
+        source = "model"
     questions = questions[:4]
-    if len(questions) >= 3:
-        return {"subject": cleaned, "questions": questions, "source": "model"}
+    if len(questions) < 3:
+        questions = [
+            f"Explain the core idea of {cleaned} in two sentences.",
+            f"Work one short example using: {topics[0] if topics else cleaned}.",
+            f"Name two common mistakes in {cleaned} and how to avoid them.",
+            f"Write a 5-minute drill question on {cleaned}.",
+        ]
+        source = "fallback"
 
-    fallback = [
-        f"Explain the core idea of {cleaned} in two sentences.",
-        f"Work one short example using: {topics[0] if topics else cleaned}.",
-        f"Name two common mistakes in {cleaned} and how to avoid them.",
-        f"Write a 5-minute drill question on {cleaned}.",
-    ]
-    return {
-        "subject": cleaned,
-        "questions": fallback,
-        "source": "fallback",
-        "detail": "AI was unavailable, so these are local practice prompts. Retry for model-generated questions.",
-    }
+    row = (
+        db.query(PracticeQuestionSet)
+        .filter(PracticeQuestionSet.student_id == student.id, PracticeQuestionSet.subject == cleaned)
+        .first()
+    )
+    payload = json.dumps(questions)
+    if row:
+        row.questions_json = payload
+        row.source = source
+        row.created_at = _now()
+    else:
+        row = PracticeQuestionSet(
+            student_id=student.id,
+            subject=cleaned,
+            questions_json=payload,
+            source=source,
+        )
+        db.add(row)
+    db.commit()
+    result = {"subject": cleaned, "questions": questions, "source": source}
+    if source == "fallback":
+        result["detail"] = "AI was unavailable, so these are local practice prompts. Retry for model-generated questions."
+    return result
+
+
+def list_practice_questions(db: Session, student: User) -> list[dict]:
+    import json
+
+    rows = (
+        db.query(PracticeQuestionSet)
+        .filter(PracticeQuestionSet.student_id == student.id)
+        .order_by(PracticeQuestionSet.created_at.desc())
+        .all()
+    )
+    results = []
+    for row in rows:
+        try:
+            questions = json.loads(row.questions_json or "[]")
+        except json.JSONDecodeError:
+            questions = []
+        results.append(
+            {
+                "subject": row.subject,
+                "questions": questions if isinstance(questions, list) else [],
+                "source": row.source,
+                "created_at": row.created_at.isoformat() if row.created_at else None,
+            }
+        )
+    return results
 
 
 def _assistant_context(db: Session, student: User) -> str:
@@ -595,19 +655,55 @@ def _assistant_context(db: Session, student: User) -> str:
     )
 
 
+def list_assistant_messages(db: Session, student: User, *, limit: int = 16) -> list[dict]:
+    rows = (
+        db.query(AssistantMessage)
+        .filter(AssistantMessage.student_id == student.id)
+        .order_by(AssistantMessage.created_at.desc())
+        .limit(limit)
+        .all()
+    )
+    return [
+        {
+            "role": row.role,
+            "text": row.content,
+            "created_at": row.created_at.isoformat() if row.created_at else None,
+        }
+        for row in reversed(rows)
+    ]
+
+
+def assistant_rate_limited(db: Session, student_id: int) -> bool:
+    cutoff = _now() - timedelta(seconds=ASSISTANT_WINDOW_SECONDS)
+    db.query(AssistantRateHit).filter(AssistantRateHit.created_at < cutoff).delete()
+    count = (
+        db.query(AssistantRateHit)
+        .filter(AssistantRateHit.student_id == student_id, AssistantRateHit.created_at >= cutoff)
+        .count()
+    )
+    if count >= ASSISTANT_LIMIT:
+        db.commit()
+        return True
+    db.add(AssistantRateHit(student_id=student_id, created_at=_now()))
+    db.commit()
+    return False
+
+
 def answer_assistant(
     db: Session,
     student: User,
     question: str,
     history: list[dict] | None = None,
 ) -> dict:
-    """Short Q&A over this student's records only. Not persisted."""
+    """Short Q&A over this student's records only. Messages are stored."""
     cleaned = (question or "").strip()
     if not cleaned:
         return {"answer": "Ask a question about your courses, attendance, or grades.", "source": "error"}
 
+    stored = list_assistant_messages(db, student, limit=8)
+    history_source = history if history else [{"role": item["role"], "content": item["text"]} for item in stored]
     history_lines = []
-    for turn in (history or [])[-6:]:
+    for turn in (history_source or [])[-6:]:
         role = str(turn.get("role") or "")
         content = str(turn.get("content") or "").strip()
         if role in ("user", "assistant") and content:
@@ -626,15 +722,60 @@ def answer_assistant(
     prompt += f"Student question: {cleaned}"
 
     text = ai_service.complete(prompt, max_output_tokens=220)
-    if text:
-        return {"answer": text, "source": "model"}
-    return {
-        "answer": (
+    source = "model"
+    if not text:
+        text = (
             "I couldn't reach the study assistant just now. Try again, or ask about your "
             "attendance, grades, or weak subjects on this page."
-        ),
-        "source": "fallback",
-    }
+        )
+        source = "fallback"
+
+    db.add(AssistantMessage(student_id=student.id, role="user", content=cleaned[:500]))
+    db.add(AssistantMessage(student_id=student.id, role="assistant", content=text[:2000]))
+    db.commit()
+    return {"answer": text, "source": source}
+
+
+def list_study_tips(db: Session) -> dict:
+    """Read cached tips only. Public GET must not call Azure or wipe rows."""
+    recent = (
+        db.query(StudyTip)
+        .order_by(StudyTip.created_at.desc())
+        .limit(5)
+        .all()
+    )
+    if len(recent) >= 3:
+        latest = recent[0]
+        return {
+            "tips": [row.content for row in reversed(recent)],
+            "source": latest.source,
+        }
+    return {"tips": list(FALLBACK_STUDY_TIPS), "source": "fallback"}
+
+
+def refresh_study_tips(db: Session) -> dict:
+    """Replace cached home tips. Call from an authenticated refresh, not GET."""
+    parsed = ai_service.complete_json(
+        "Write 5 short, practical study tips for college students. "
+        "Return JSON with key tips (array of 5 strings, each one sentence)."
+    )
+    tips: list[str] = []
+    source = "fallback"
+    if isinstance(parsed, dict) and isinstance(parsed.get("tips"), list):
+        tips = [str(item).strip() for item in parsed["tips"] if str(item).strip()][:5]
+        source = "model"
+    elif isinstance(parsed, list):
+        tips = [str(item).strip() for item in parsed if str(item).strip()][:5]
+        source = "model"
+    if len(tips) < 3:
+        tips = list(FALLBACK_STUDY_TIPS)
+        source = "fallback"
+
+    generated = [StudyTip(content=tip, source=source, created_at=_now()) for tip in tips]
+    db.query(StudyTip).delete()
+    db.add_all(generated)
+    db.commit()
+    return {"tips": tips, "source": source}
 
 
 def _unique(items: list[str]) -> list[str]:

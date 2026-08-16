@@ -33,6 +33,10 @@ export default function AdminLogin() {
       <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Admin Area</p>
       <h1 className="text-3xl font-bold">Admin Login</h1>
       <p className="text-slate-600">Secure access for administrators only.</p>
+      <p className="text-xs text-slate-500">
+        Demo admin: <span className="font-medium">admin@edu.local</span> (or @edu.example.com) · password{" "}
+        <span className="font-medium">password123</span>
+      </p>
 
       {error ? <p className="rounded-md bg-red-50 px-3 py-2 text-sm text-red-700">{error}</p> : null}
 
@@ -40,7 +44,8 @@ export default function AdminLogin() {
         <label className="block text-sm">
           <span className="mb-1 block font-medium text-slate-700">Email</span>
           <input
-            type="email"
+            type="text"
+            autoComplete="username"
             required
             value={email}
             onChange={(event) => setEmail(event.target.value)}
@@ -51,6 +56,7 @@ export default function AdminLogin() {
           <span className="mb-1 block font-medium text-slate-700">Password</span>
           <input
             type="password"
+            autoComplete="current-password"
             required
             value={password}
             onChange={(event) => setPassword(event.target.value)}
