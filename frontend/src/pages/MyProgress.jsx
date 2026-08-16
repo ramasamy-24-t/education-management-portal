@@ -6,18 +6,47 @@ export default function MyProgress() {
   const { token } = useAuth();
   const [data, setData] = useState(null);
   const [error, setError] = useState("");
+  const [pending, setPending] = useState(false);
+
+  async function load() {
+    setData(await api("/users/me/progress-overview", { token }));
+  }
 
   useEffect(() => {
-    api("/users/me/progress-overview", { token })
-      .then(setData)
-      .catch((err) => setError(err.message));
+    load().catch((err) => setError(err.message));
   }, [token]);
+
+  async function refresh() {
+    setPending(true);
+    setError("");
+    try {
+      await api("/ai/refresh", { method: "POST", token });
+      await load();
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setPending(false);
+    }
+  }
 
   return (
     <section className="space-y-6">
       <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">User Area</p>
-      <h1 className="text-3xl font-bold">My Progress</h1>
-      <p className="text-slate-600">Student-only view of performance. AI sections are placeholders until Prompt 6.</p>
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <h1 className="text-3xl font-bold">My Progress</h1>
+        <button
+          type="button"
+          onClick={refresh}
+          disabled={pending}
+          className="rounded-md bg-slate-900 px-3 py-2 text-sm font-medium text-white disabled:opacity-60"
+        >
+          {pending ? "Refreshing…" : "Refresh AI insights"}
+        </button>
+      </div>
+      <p className="text-slate-600">
+        Performance numbers come from your attendance, assignments, and exams. Insights are stored in the AI Engine
+        and reused so pages stay up if Azure is unavailable.
+      </p>
 
       {error ? <p className="rounded-md bg-red-50 px-3 py-2 text-sm text-red-700">{error}</p> : null}
       {!data && !error ? <p className="text-slate-600">Loading progress…</p> : null}
@@ -41,9 +70,9 @@ export default function MyProgress() {
             </dl>
           </div>
 
-          <Placeholder title="Weak subjects" body="The AI Engine will identify weak subjects here in Prompt 6." />
-          <Placeholder title="Improvement tips" body="Study recommendations will appear here in Prompt 6." />
-          <Placeholder title="AI insights" body="Stored AI insights and reports will appear here in Prompt 6." />
+          <ListCard title="Weak subjects" items={data.weak_subjects} empty="No weak subjects stored yet." />
+          <ListCard title="Improvement tips" items={data.improvement_tips} empty="No study recommendations stored yet." />
+          <ListCard title="AI insights" items={data.ai_insights} empty="No performance or at-risk insights stored yet." />
         </>
       ) : null}
     </section>
@@ -59,11 +88,19 @@ function Item({ label, value }) {
   );
 }
 
-function Placeholder({ title, body }) {
+function ListCard({ title, items, empty }) {
   return (
-    <div className="rounded-xl border border-dashed border-violet-200 bg-violet-50 p-5">
+    <div className="rounded-xl border border-violet-200 bg-violet-50 p-5">
       <h2 className="text-lg font-semibold text-violet-950">{title}</h2>
-      <p className="mt-2 text-sm text-violet-900">{body}</p>
+      {items?.length ? (
+        <ul className="mt-2 list-disc space-y-1 pl-5 text-sm text-violet-900">
+          {items.map((item) => (
+            <li key={item}>{item}</li>
+          ))}
+        </ul>
+      ) : (
+        <p className="mt-2 text-sm text-violet-900">{empty}</p>
+      )}
     </div>
   );
 }

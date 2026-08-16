@@ -100,7 +100,7 @@ export default function Assignments({ embedded = false }) {
         token,
         body: { grade: Number(payload?.grade), feedback: payload?.feedback || "" },
       });
-      setMessage("Grade saved. AI feedback will be filled in a later prompt.");
+      setMessage("Grade saved. AI feedback is generated beside your comments.");
       setSubmissions(await api(`/assignments/${activeId}/submissions`, { token }));
     } catch (err) {
       setError(err.message);
@@ -115,7 +115,7 @@ export default function Assignments({ embedded = false }) {
       <h1 className={embedded ? "text-xl font-bold" : "text-3xl font-bold"}>Assignments</h1>
       <p className="text-slate-600">
         {canCreate
-          ? "Create assignments with due dates and grade student submissions. The ai_feedback column is left for Prompt 6."
+          ? "Create assignments with due dates and grade student submissions. Saving a grade also writes AI feedback for the student."
           : "View due dates and submit your work. You cannot grade your own assignment."}
       </p>
 
@@ -207,7 +207,7 @@ export default function Assignments({ embedded = false }) {
               <p className="mt-2 text-slate-600">
                 Grade: {row.grade ?? "—"} · Feedback: {row.feedback || "—"}
               </p>
-              <p className="text-slate-500">AI feedback: {row.ai_feedback || "Not generated yet (Prompt 6)"}</p>
+              <p className="text-violet-900">AI feedback: {row.ai_feedback || "Unavailable — teacher feedback still stands."}</p>
               {canCreate ? (
                 <div className="mt-3 grid gap-2 md:grid-cols-2">
                   <input

@@ -85,9 +85,15 @@ export default function StudentDashboard() {
               </p>
               <p className="mt-2 text-sm text-slate-700">{item.description}</p>
               {item.my_submission ? (
-                <p className="mt-2 text-sm text-emerald-800">
-                  Submitted · grade {item.my_submission.grade ?? "pending"} · {item.my_submission.feedback || "no feedback yet"}
-                </p>
+                <div className="mt-2 space-y-1 text-sm">
+                  <p className="text-emerald-800">
+                    Submitted · teacher grade {item.my_submission.grade ?? "pending"} ·{" "}
+                    {item.my_submission.feedback || "no teacher feedback yet"}
+                  </p>
+                  <p className="text-violet-900">
+                    AI feedback: {item.my_submission.ai_feedback || "Will appear after your teacher grades this."}
+                  </p>
+                </div>
               ) : null}
               <textarea
                 rows={3}
@@ -131,22 +137,32 @@ export default function StudentDashboard() {
         ) : (
           <ul className="mt-3 space-y-2 text-sm">
             {data.grades.map((row) => (
-              <li key={row.id} className="flex justify-between">
-                <span>{row.exam_title}</span>
-                <span>
-                  {row.marks_obtained}/{row.max_marks} ({row.percent}%)
-                </span>
+              <li key={row.id} className="border-b border-slate-100 py-2 last:border-0">
+                <div className="flex justify-between">
+                  <span>{row.exam_title}</span>
+                  <span>
+                    {row.marks_obtained}/{row.max_marks} ({row.percent}%)
+                  </span>
+                </div>
+                {row.ai_summary ? <p className="mt-1 text-violet-900">{row.ai_summary}</p> : null}
+                {row.weak_topics ? <p className="text-slate-600">Weak topics: {row.weak_topics}</p> : null}
               </li>
             ))}
           </ul>
         )}
       </section>
 
-      <section className="rounded-xl border border-dashed border-violet-200 bg-violet-50 p-5">
+      <section className="rounded-xl border border-violet-200 bg-violet-50 p-5">
         <h2 className="text-lg font-semibold text-violet-950">AI recommendations</h2>
-        <p className="mt-2 text-sm text-violet-900">
-          Placeholder — the AI Engine will fill this in Prompt 6. No recommendations yet.
-        </p>
+        {data.ai_recommendations?.length ? (
+          <ul className="mt-2 list-disc space-y-1 pl-5 text-sm text-violet-900">
+            {data.ai_recommendations.map((item) => (
+              <li key={item}>{item}</li>
+            ))}
+          </ul>
+        ) : (
+          <p className="mt-2 text-sm text-violet-900">No stored recommendations yet. Open My Progress to generate them.</p>
+        )}
       </section>
 
       <section className="rounded-xl border border-slate-200 bg-white p-5">

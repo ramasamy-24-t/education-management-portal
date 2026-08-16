@@ -1,4 +1,5 @@
 import { Link } from "react-router-dom";
+import AdminInsightsPanel from "../dashboards/AdminInsightsPanel.jsx";
 import AdminPeoplePanel from "../dashboards/AdminPeoplePanel.jsx";
 import { useAuth } from "../hooks/useAuth.js";
 
@@ -23,12 +24,7 @@ export default function AdminDashboard() {
         <AdminLink to="/reports" title="View reports & analytics" body="Opens Performance Reports. Full analytics land in Prompt 7." />
       </div>
 
-      <div className="rounded-xl border border-dashed border-violet-200 bg-violet-50 p-5">
-        <h2 className="text-lg font-semibold text-violet-950">AI insights & monitoring</h2>
-        <p className="mt-2 text-sm text-violet-900">
-          Placeholder — class-level AI insights and at-risk monitoring will be wired in Prompt 6.
-        </p>
-      </div>
+      <AdminInsightsPanel />
     </section>
   );
 }

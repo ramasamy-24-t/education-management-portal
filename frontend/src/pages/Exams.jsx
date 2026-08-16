@@ -96,7 +96,7 @@ export default function Exams({ embedded = false }) {
         .filter((student) => marks[student.id] !== "" && marks[student.id] != null)
         .map((student) => ({ student_id: student.id, marks_obtained: Number(marks[student.id]) }));
       await api(`/exams/${activeId}/grades`, { method: "PUT", token, body: { records } });
-      setMessage("Marks recorded. Exam analysis will be generated in Prompt 6.");
+      setMessage("Marks recorded. Exam analysis is generated for each student.");
       setGrades(await api(`/exams/${activeId}/grades`, { token }));
       if (user.role === "student") {
         setHistory(await api("/grades/me", { token }));
@@ -112,8 +112,8 @@ export default function Exams({ embedded = false }) {
       <h1 className={embedded ? "text-xl font-bold" : "text-3xl font-bold"}>Exams & Grades</h1>
       <p className="text-slate-600">
         {canManage
-          ? "Create an exam, then record marks per student. “Take Exams” means entering results, not a live quiz."
-          : "View your grades and full exam history."}
+          ? "Create an exam, then record marks per student. Saving marks also writes an exam analysis (summary and weak topics)."
+          : "View your grades, exam analysis, and full grade history."}
       </p>
 
       {error ? <p className="rounded-md bg-red-50 px-3 py-2 text-sm text-red-700">{error}</p> : null}
@@ -200,7 +200,11 @@ export default function Exams({ embedded = false }) {
             <ul className="space-y-2 text-sm">
               {grades.map((row) => (
                 <li key={row.id} className="rounded-md border border-slate-200 bg-white px-3 py-2">
-                  {row.student_name}: {row.marks_obtained}/{row.max_marks} ({row.percent}%)
+                  <p>
+                    {row.student_name}: {row.marks_obtained}/{row.max_marks} ({row.percent}%)
+                  </p>
+                  {row.ai_summary ? <p className="mt-1 text-violet-900">{row.ai_summary}</p> : null}
+                  {row.weak_topics ? <p className="text-slate-600">Weak topics: {row.weak_topics}</p> : null}
                 </li>
               ))}
             </ul>
@@ -231,6 +235,8 @@ export default function Exams({ embedded = false }) {
                     <td>{row.date}</td>
                     <td>
                       {row.marks_obtained}/{row.max_marks} ({row.percent}%)
+                      {row.ai_summary ? <p className="text-violet-900">{row.ai_summary}</p> : null}
+                      {row.weak_topics ? <p className="text-slate-500">Weak topics: {row.weak_topics}</p> : null}
                     </td>
                   </tr>
                 ))}
