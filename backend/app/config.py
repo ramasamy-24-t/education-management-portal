@@ -20,6 +20,8 @@ class Settings(BaseSettings):
     db_password: str = ""
     db_name: str = "education_portal"
     secret_key: str = "dev-only-change-me"
+    jwt_algorithm: str = "HS256"
+    access_token_expire_minutes: int = 480
     azure_ai_endpoint: str = ""
     azure_ai_api_key: str = ""
 
