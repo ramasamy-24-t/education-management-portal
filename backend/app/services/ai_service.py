@@ -5,6 +5,7 @@ from __future__ import annotations
 import json
 import logging
 import re
+from urllib.parse import parse_qsl, urlencode, urlsplit, urlunsplit
 
 import httpx
 
@@ -12,8 +13,8 @@ from app.config import get_settings
 
 logger = logging.getLogger(__name__)
 
-# Foundry agent Responses accepts v1 / 2025-11-15-preview, not 2025-04-01-preview.
-_PREFERRED_VERSIONS = ("v1", "2025-11-15-preview", "2025-05-01-preview")
+# Foundry agent Responses: v1 and 2025-11-15-preview work. v2 and 2025-04-01-preview do not.
+_SUPPORTED_VERSIONS = ("v1", "2025-11-15-preview")
 _working_url: str | None = None
 
 
@@ -43,21 +44,20 @@ def complete(prompt: str, *, max_output_tokens: int = 400) -> str | None:
             "model": settings.azure_ai_model,
             "input": prompt,
         },
-        {
-            "model": settings.azure_ai_model,
-            "messages": [{"role": "user", "content": prompt}],
-            "max_tokens": max_output_tokens,
-        },
     ]
 
     try:
         with httpx.Client(timeout=settings.azure_ai_timeout_seconds) as client:
+            last_error = None
             for url in _candidate_urls(settings):
                 for body in payloads:
                     try:
                         response = client.post(url, headers=headers, json=body)
                         if response.status_code >= 400:
-                            logger.warning("Azure AI HTTP %s: %s", response.status_code, response.text[:300])
+                            last_error = response.text[:300]
+                            if "API version not supported" in response.text:
+                                break
+                            logger.warning("Azure AI HTTP %s: %s", response.status_code, last_error)
                             continue
                         text = _extract_text(response.json())
                         if text:
@@ -69,6 +69,8 @@ def complete(prompt: str, *, max_output_tokens: int = 400) -> str | None:
                     except httpx.HTTPError as exc:
                         logger.warning("Azure AI HTTP error: %s", exc)
                         continue
+            if last_error:
+                logger.warning("Azure AI request failed after retries: %s", last_error)
     except Exception as exc:  # noqa: BLE001 — AI must never break a page
         logger.warning("Azure AI call failed: %s", exc)
         return None
@@ -76,17 +78,25 @@ def complete(prompt: str, *, max_output_tokens: int = 400) -> str | None:
 
 
 def _candidate_urls(settings) -> list[str]:
-    if "api-version=" in settings.azure_ai_endpoint:
-        return [settings.azure_ai_endpoint]
-    seen: list[str] = []
-    for version in (settings.azure_ai_api_version, *_PREFERRED_VERSIONS):
-        if version and version not in seen:
-            seen.append(version)
-    joiner = "&" if "?" in settings.azure_ai_endpoint else "?"
-    urls = [f"{settings.azure_ai_endpoint}{joiner}api-version={version}" for version in seen]
+    base, embedded_version = _strip_api_version(settings.azure_ai_endpoint)
+    configured = (embedded_version or settings.azure_ai_api_version or "v1").strip()
+    versions: list[str] = []
+    for version in (configured, *_SUPPORTED_VERSIONS):
+        if version and version not in versions:
+            versions.append(version)
+    joiner = "&" if "?" in base else "?"
+    urls = [f"{base}{joiner}api-version={version}" for version in versions]
     if _working_url and _working_url in urls:
         return [_working_url, *[url for url in urls if url != _working_url]]
     return urls
+
+
+def _strip_api_version(endpoint: str) -> tuple[str, str | None]:
+    parts = urlsplit(endpoint.strip())
+    query = [(key, value) for key, value in parse_qsl(parts.query, keep_blank_values=True) if key != "api-version"]
+    embedded = dict(parse_qsl(parts.query)).get("api-version")
+    rebuilt = urlunsplit((parts.scheme, parts.netloc, parts.path, urlencode(query), parts.fragment))
+    return rebuilt.rstrip("?"), embedded
 
 
 def _remember_url(url: str) -> None:

@@ -19,6 +19,7 @@ from app.routers import (
     exams,
     faqs,
     health,
+    reports,
     teachers,
     users,
 )
@@ -55,6 +56,7 @@ app.include_router(assignments.router)
 app.include_router(exams.router)
 app.include_router(users.router)
 app.include_router(ai.router)
+app.include_router(reports.router)
 
 
 @app.get("/")
