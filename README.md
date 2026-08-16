@@ -15,21 +15,23 @@ Hackathon project for students, teachers, and admins: public course pages, acade
     app/
       config.py
       database.py
+      deps.py        JWT + role guards
       main.py
-      models/        One module per domain (users, courses, academic, AI, …)
-      routers/       HTTP routes (health only in this step)
-      services/      Business logic (empty until later prompts)
+      models/
+      schemas/
+      routers/       auth, courses, classes, enrollments, teachers
+      services/
     seed.py
     .env.example
 ```
 
 ## What this step added
 
-- Full project scaffold (`frontend/`, `backend/`)
-- Placeholder React routes for every top-level page in the architecture diagram
-- SQLAlchemy models + MySQL tables for all entities implied by the diagram
-- Seed data so dashboards have students, teachers, admin, courses, classes, attendance, assignments, exams, FAQs, announcements, and sample AI insights
-- `.env` / `.env.example` for DB and secrets (`.env` is gitignored)
+- JWT auth: register (student/teacher), user login, admin login, `/auth/me`, logout
+- Role/ownership guards on every mutating course, class, and enrollment endpoint
+- Course search/filter/categories/top-rated, class CRUD, student enroll, top teachers
+- Frontend auth context (token in memory, not `localStorage`), protected routes, login pages
+- Live Courses + Course Details + Enroll Now, plus Manage Courses & Classes for teachers/admins
 
 ## Assumptions
 
@@ -41,6 +43,11 @@ Hackathon project for students, teachers, and admins: public course pages, acade
 - **`ai_insights.student_id` / `class_id`** are nullable so class-level insights (Admin monitoring) do not require a student.
 - Academic Flow screens (Attendance, Assignments, Exams & Grades) will be nested under User / Admin dashboards in later prompts; this step only registered the listed public/user/admin/report routes.
 - Seed accounts all use password `password123` (local demo only).
+- JWT is **stateless** and stored **only in React memory**. Refreshing the browser logs the user out. `POST /auth/logout` tells the client to discard the token; there is no server-side blacklist.
+- Public registration is **student/teacher only**. Admin accounts are seeded (or created in the database). User login rejects admin accounts; Admin Login rejects student/teacher accounts.
+- Top Teachers are ranked by **average course rating**, then distinct enrolled-student count.
+- A course/class cannot be deleted while it still has attendance, assignments, or exams.
+- Demo emails use `@edu.local`. Request validation accepts these (strict RFC email validators reject `.local`).
 
 ## MySQL via XAMPP
 
@@ -61,7 +68,9 @@ Copy `backend/.env.example` to `backend/.env` (already created locally) and set:
 | `DB_USER` | MySQL user (default `root`) |
 | `DB_PASSWORD` | MySQL password (often empty on XAMPP) |
 | `DB_NAME` | Schema name (default `education_portal`) |
-| `SECRET_KEY` | App secret for later JWT/auth |
+| `SECRET_KEY` | JWT signing secret |
+| `JWT_ALGORITHM` | JWT algorithm (default `HS256`) |
+| `ACCESS_TOKEN_EXPIRE_MINUTES` | Token lifetime (default `480` = 8 hours) |
 | `AZURE_AI_ENDPOINT` | Azure AI Foundry Model Router URL (later prompts) |
 | `AZURE_AI_API_KEY` | Azure key — never commit this |
 
@@ -98,6 +107,88 @@ npm run dev
 App: http://localhost:5173  
 Vite proxies `/api` → `http://127.0.0.1:8000`.
 
+## Auth flow and roles
+
+1. **Student / Teacher** — `POST /auth/register` (role `student` or `teacher`) or `POST /auth/login`. Frontend: `/login`.
+2. **Admin** — `POST /auth/admin/login`. Frontend: `/admin/login`. Admins cannot self-register.
+3. Client stores `{ access_token, user }` in `AuthContext` (memory only) and sends `Authorization: Bearer <token>`.
+4. `GET /auth/me` returns the current user. `POST /auth/logout` requires a valid token and is a no-op on the server.
+5. `ProtectedRoute` sends anonymous users to `/login` or `/admin/login`, and wrong-role users to `/`.
+
+| Role | Can do |
+| --- | --- |
+| student | Enroll in a course; view public catalog; see own enrollments |
+| teacher | Create/update/delete **own** courses and their classes |
+| admin | Create/update/delete **any** course/class; must set `teacher_id` on create |
+
+A teacher cannot edit another teacher's course (403). A student cannot create courses or enroll someone else.
+
+### Example: register
+
+```http
+POST /auth/register
+Content-Type: application/json
+
+{
+  "name": "New Student",
+  "email": "new.student@edu.local",
+  "password": "password123",
+  "role": "student"
+}
+```
+
+```json
+{
+  "access_token": "eyJ...",
+  "token_type": "bearer",
+  "user": {
+    "id": 10,
+    "name": "New Student",
+    "email": "new.student@edu.local",
+    "role": "student",
+    "created_at": "2026-08-16T06:00:00"
+  }
+}
+```
+
+### Example: login
+
+```http
+POST /auth/login
+{"email": "rohan.sharma@edu.local", "password": "password123"}
+```
+
+Admin equivalent: `POST /auth/admin/login` with `admin@edu.local`.
+
+### Example: list + enroll
+
+```http
+GET /courses?search=python&category=Computer%20Science
+GET /courses/top-rated?limit=5
+GET /teachers/top?limit=5
+POST /enrollments
+Authorization: Bearer <token>
+{"course_id": 1}
+```
+
+### Course / class endpoints
+
+| Method | Path | Who |
+| --- | --- | --- |
+| GET | `/courses`, `/courses/top-rated`, `/courses/categories`, `/courses/{id}` | Public (optional JWT marks `enrolled`) |
+| POST | `/courses` | teacher, admin |
+| PATCH / DELETE | `/courses/{id}` | owner teacher or admin |
+| GET | `/courses/{id}/classes` | Public |
+| POST | `/courses/{id}/classes` | owner teacher or admin |
+| PATCH / DELETE | `/classes/{id}` | owner teacher or admin |
+| POST | `/enrollments` | student (self only) |
+| GET | `/enrollments/me` | student |
+| GET | `/teachers`, `/teachers/top` | Public |
+
+## Frontend routes
+
+Protected: `/dashboard` and `/progress` (student/teacher), `/manage/courses` (teacher/admin), `/admin` (admin), `/reports` (any signed-in role).
+
 ## Placeholder routes
 
 | Path | Diagram page |
@@ -125,16 +216,16 @@ Check off boxes as later prompts implement them (schema + placeholder routes onl
 - [ ] Home Page — Top Teachers
 - [ ] Home Page — AI Study Tips
 - [ ] Home Page — CTA → Explore Courses
-- [ ] Courses Page — Search Courses
-- [ ] Courses Page — Filter
-- [ ] Courses Page — Categories
-- [ ] Courses Page — Course Listing
-- [ ] Courses Page — Top Rated Courses
-- [ ] Course Details — Course Info
-- [ ] Course Details — Syllabus
-- [ ] Course Details — Teacher Info
-- [ ] Course Details — Schedule
-- [ ] Course Details — Enroll Now
+- [x] Courses Page — Search Courses
+- [x] Courses Page — Filter
+- [x] Courses Page — Categories
+- [x] Courses Page — Course Listing
+- [x] Courses Page — Top Rated Courses
+- [x] Course Details — Course Info
+- [x] Course Details — Syllabus
+- [x] Course Details — Teacher Info
+- [x] Course Details — Schedule
+- [x] Course Details — Enroll Now
 - [ ] Contact Page — Contact Info
 - [ ] Contact Page — Contact Form
 - [ ] Contact Page — FAQ
@@ -156,10 +247,10 @@ Check off boxes as later prompts implement them (schema + placeholder routes onl
 
 ### User Area (Student / Teacher)
 
-- [ ] User Login / Register — Account Access
-- [ ] User Login / Register — Role Selection (Student / Teacher)
-- [ ] User Dashboard — Profile
-- [ ] User Dashboard — My Courses
+- [x] User Login / Register — Account Access
+- [x] User Login / Register — Role Selection (Student / Teacher)
+- [x] User Dashboard — Profile
+- [x] User Dashboard — My Courses
 - [ ] User Dashboard — My Assignments
 - [ ] User Dashboard — Attendance
 - [ ] User Dashboard — Grades
@@ -172,10 +263,10 @@ Check off boxes as later prompts implement them (schema + placeholder routes onl
 
 ### Admin Area
 
-- [ ] Admin Login — Secure Access
+- [x] Admin Login — Secure Access
 - [ ] Admin Dashboard — Manage Students
 - [ ] Admin Dashboard — Manage Teachers
-- [ ] Admin Dashboard — Manage Courses & Classes
+- [x] Admin Dashboard — Manage Courses & Classes
 - [ ] Admin Dashboard — Manage Assignments
 - [ ] Admin Dashboard — Manage Exams & Grades
 - [ ] Admin Dashboard — View Reports & Analytics
