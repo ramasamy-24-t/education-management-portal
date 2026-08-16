@@ -38,10 +38,11 @@ git config core.hooksPath hooks
 
 ## What this step added
 
-- Attendance: teacher marks per class/date; students view their own records; summary % present (late counts as present)
-- Assignments: teacher create/view + due dates; student submit; teacher grade + manual feedback (`ai_feedback` left for Prompt 6)
-- Exams & Grades: teacher creates exam and records marks; student views grades and grade history (`exam_analysis` left for Prompt 6)
-- Academic pages at `/attendance`, `/assignments`, `/exams` for student, teacher, and admin
+- Student dashboard: profile, my courses, assignment submit UI, attendance, grades, progress overview, AI recommendations placeholder
+- Teacher dashboard: my classes plus embedded mark-attendance, create/grade assignments, and exam marks UIs
+- My Progress (student-only): performance numbers from `GET /users/me/progress-overview`; weak subjects / tips / insights are Prompt 6 placeholders
+- Admin dashboard: list/create/deactivate students and teachers; links for courses, assignments, exams, reports; AI monitoring placeholder
+- `users.is_active` for deactivate (existing rows default to active)
 
 ## Assumptions
 
@@ -66,6 +67,9 @@ git config core.hooksPath hooks
 - **Take Exams** is not a live quiz UI. Teachers (or admins) record marks per enrolled student.
 - Students cannot grade their own submissions. Teachers cannot mark attendance, grade, or record exam marks for another teacher's class.
 - `assignment_submissions.ai_feedback` and `exam_analysis` are stored but not written by these endpoints.
+- **Deactivate** sets `users.is_active = false`. Deactivated accounts cannot log in. Admins cannot deactivate other admins or themselves.
+- **My Progress** is student-only. Teachers do not see that nav link.
+- Dashboard AI sections return empty lists with `ai_pending: true` until Prompt 6.
 
 ## MySQL via XAMPP
 
@@ -262,9 +266,29 @@ Authorization: Bearer <teacher-token>
 }
 ```
 
+## Dashboards
+
+| View | Path | Endpoints |
+| --- | --- | --- |
+| Student dashboard | `/dashboard` | `GET /users/me/dashboard`, `POST /assignments/{id}/submissions` |
+| Teacher dashboard | `/dashboard` | `GET /users/me/dashboard`, plus existing attendance/assignment/exam APIs |
+| My Progress | `/progress` (student) | `GET /users/me/progress-overview` |
+| Admin login | `/admin/login` | `POST /auth/admin/login` |
+| Admin dashboard | `/admin` | `GET/POST /admin/users`, `PATCH /admin/users/{id}` |
+
+`GET /users/me/dashboard` returns a student payload (courses, assignments with `my_submission`, attendance summaries, grades, progress overview, empty `ai_recommendations`) or a teacher payload (courses + classes). Admins have no user dashboard.
+
+### Example: deactivate a student
+
+```http
+PATCH /admin/users/12
+Authorization: Bearer <admin-token>
+{"is_active": false}
+```
+
 ## Frontend routes
 
-Protected: `/dashboard` and `/progress` (student/teacher), `/attendance` `/assignments` `/exams` (student/teacher/admin), `/manage/courses` (teacher/admin), `/admin` (admin), `/reports` (any signed-in role).
+Protected: `/dashboard` (student/teacher), `/progress` (student), `/attendance` `/assignments` `/exams` (student/teacher/admin), `/manage/courses` (teacher/admin), `/admin` (admin), `/reports` (any signed-in role).
 
 ## Placeholder routes
 
@@ -331,23 +355,23 @@ Check off boxes as later prompts implement them (schema + placeholder routes onl
 - [x] User Dashboard — My Assignments
 - [x] User Dashboard — Attendance
 - [x] User Dashboard — Grades
-- [ ] User Dashboard — AI Recommendations
-- [ ] User Dashboard — Progress Overview
-- [ ] My Progress — Performance Overview
-- [ ] My Progress — Weak Subjects
-- [ ] My Progress — Improvement Tips
-- [ ] My Progress — AI Insights
+- [x] User Dashboard — AI Recommendations
+- [x] User Dashboard — Progress Overview
+- [x] My Progress — Performance Overview
+- [x] My Progress — Weak Subjects
+- [x] My Progress — Improvement Tips
+- [x] My Progress — AI Insights
 
 ### Admin Area
 
 - [x] Admin Login — Secure Access
-- [ ] Admin Dashboard — Manage Students
-- [ ] Admin Dashboard — Manage Teachers
+- [x] Admin Dashboard — Manage Students
+- [x] Admin Dashboard — Manage Teachers
 - [x] Admin Dashboard — Manage Courses & Classes
 - [x] Admin Dashboard — Manage Assignments
 - [x] Admin Dashboard — Manage Exams & Grades
-- [ ] Admin Dashboard — View Reports & Analytics
-- [ ] Admin Dashboard — AI Insights & Monitoring
+- [x] Admin Dashboard — View Reports & Analytics
+- [x] Admin Dashboard — AI Insights & Monitoring
 
 ### AI Engine + Reports
 
