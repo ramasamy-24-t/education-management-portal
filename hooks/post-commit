@@ -1,0 +1,12 @@
+#!/bin/sh
+# Safety net: if a Cursor trailer is injected after commit-msg, amend
+# the message only. The commit tree (files) is left unchanged.
+if [ -n "$SKIP_CURSOR_COAUTHOR_FIX" ]; then
+  exit 0
+fi
+
+msg=$(git log -1 --format=%B)
+echo "$msg" | grep -qiE 'co-authored-by:[[:space:]]*.*cursor' || exit 0
+
+cleaned=$(printf '%s\n' "$msg" | grep -viE '^[[:space:]]*(co-authored-by:.*cursor|made-with:[[:space:]]*cursor)')
+printf '%s\n' "$cleaned" | SKIP_CURSOR_COAUTHOR_FIX=1 git commit --amend -F - --no-verify >/dev/null

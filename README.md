@@ -23,7 +23,18 @@ Hackathon project for students, teachers, and admins: public course pages, acade
       services/
     seed.py
     .env.example
+  hooks/             Git hooks that strip Cursor co-author trailers
 ```
+
+## Git commit attribution
+
+This repo must not list Cursor as a commit co-author. After cloning, point Git at the project hooks (already set in this working copy):
+
+```bash
+git config core.hooksPath hooks
+```
+
+`commit-msg` removes any `Co-authored-by: Cursor` line before the commit is written. `post-commit` amends the **message only** if that trailer is injected afterward — Prompt 1 and Prompt 2 file trees are not rewritten. Also turn off **Cursor Settings → Agent → Attribution** so the IDE agent stops adding the trailer.
 
 ## What this step added
 
