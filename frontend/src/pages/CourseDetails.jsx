@@ -1,17 +1,17 @@
 import { useEffect, useState } from "react";
-import { Link, useNavigate, useParams } from "react-router-dom";
+import { Link, useParams } from "react-router-dom";
 import { api } from "../api/client.js";
 import { useAuth } from "../hooks/useAuth.js";
 
 export default function CourseDetails() {
   const { courseId } = useParams();
   const { user, token } = useAuth();
-  const navigate = useNavigate();
   const [course, setCourse] = useState(null);
   const [classes, setClasses] = useState([]);
   const [error, setError] = useState("");
   const [message, setMessage] = useState("");
   const [pending, setPending] = useState(false);
+  const [showLoginPrompt, setShowLoginPrompt] = useState(false);
 
   async function load() {
     const [courseData, classData] = await Promise.all([
@@ -28,7 +28,7 @@ export default function CourseDetails() {
 
   async function enroll() {
     if (!user) {
-      navigate("/login", { state: { from: { pathname: `/courses/${courseId}` } } });
+      setShowLoginPrompt(true);
       return;
     }
     setPending(true);
@@ -107,14 +107,34 @@ export default function CourseDetails() {
         course.enrolled ? (
           <p className="rounded-md bg-emerald-50 px-4 py-3 text-sm font-medium text-emerald-800">You are enrolled in this course.</p>
         ) : (
-          <button
-            type="button"
-            onClick={enroll}
-            disabled={pending}
-            className="rounded-md bg-slate-900 px-4 py-2 text-sm font-medium text-white disabled:opacity-60"
-          >
-            {pending ? "Enrolling…" : "Enroll now"}
-          </button>
+          <div className="space-y-3">
+            <button
+              type="button"
+              onClick={enroll}
+              disabled={pending}
+              className="rounded-md bg-slate-900 px-4 py-2 text-sm font-medium text-white disabled:opacity-60"
+            >
+              {pending ? "Enrolling…" : "Enroll now"}
+            </button>
+            {showLoginPrompt ? (
+              <div className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-950">
+                <p className="font-medium">Log in as a student to enroll.</p>
+                <p className="mt-1">You will return to this course after signing in.</p>
+                <div className="mt-3 flex flex-wrap gap-2">
+                  <Link
+                    to="/login"
+                    state={{ from: { pathname: `/courses/${courseId}` } }}
+                    className="rounded-md bg-slate-900 px-3 py-1.5 text-white"
+                  >
+                    Go to login
+                  </Link>
+                  <button type="button" onClick={() => setShowLoginPrompt(false)} className="rounded-md px-3 py-1.5 underline">
+                    Not now
+                  </button>
+                </div>
+              </div>
+            ) : null}
+          </div>
         )
       ) : (
         <p className="text-sm text-slate-600">Teachers and admins manage courses instead of enrolling.</p>

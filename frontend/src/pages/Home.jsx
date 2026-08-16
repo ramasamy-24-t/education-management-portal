@@ -1,18 +1,105 @@
-import PlaceholderPage from "../components/PlaceholderPage.jsx";
+import { useEffect, useState } from "react";
+import { Link } from "react-router-dom";
+import { api } from "../api/client.js";
+import CourseCard from "../components/CourseCard.jsx";
+import TeacherCard from "../components/TeacherCard.jsx";
+import { STUDY_TIPS } from "../data/studyTips.js";
 
 export default function Home() {
+  const [announcements, setAnnouncements] = useState([]);
+  const [featured, setFeatured] = useState([]);
+  const [teachers, setTeachers] = useState([]);
+  const [tipIndex, setTipIndex] = useState(0);
+  const [error, setError] = useState("");
+
+  useEffect(() => {
+    Promise.all([
+      api("/announcements?limit=6"),
+      api("/courses/top-rated?limit=4"),
+      api("/teachers/top?limit=3"),
+    ])
+      .then(([nextAnnouncements, nextFeatured, nextTeachers]) => {
+        setAnnouncements(nextAnnouncements);
+        setFeatured(nextFeatured);
+        setTeachers(nextTeachers);
+      })
+      .catch((err) => setError(err.message));
+  }, []);
+
+  useEffect(() => {
+    const timer = window.setInterval(() => {
+      setTipIndex((current) => (current + 1) % STUDY_TIPS.length);
+    }, 8000);
+    return () => window.clearInterval(timer);
+  }, []);
+
   return (
-    <PlaceholderPage
-      area="Public Pages"
-      title="Home Page"
-      items={[
-        "Hero / Banner",
-        "Announcements",
-        "Featured Courses",
-        "Top Teachers",
-        "AI Study Tips",
-        "CTA → Explore Courses",
-      ]}
-    />
+    <section className="space-y-10">
+      <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Public Pages</p>
+
+      <div className="rounded-2xl bg-slate-900 px-6 py-12 text-white md:px-10">
+        <p className="text-sm font-medium uppercase tracking-wide text-slate-300">Education Management Portal</p>
+        <h1 className="mt-2 max-w-2xl text-4xl font-bold leading-tight">Learn, teach, and track progress in one place</h1>
+        <p className="mt-4 max-w-xl text-slate-300">
+          Browse courses, enroll in minutes, and use attendance, assignments, and grades to see where to focus next.
+        </p>
+        <Link
+          to="/courses"
+          className="mt-6 inline-block rounded-md bg-white px-5 py-2.5 text-sm font-semibold text-slate-900"
+        >
+          Explore courses
+        </Link>
+      </div>
+
+      {error ? <p className="rounded-md bg-red-50 px-3 py-2 text-sm text-red-700">{error}</p> : null}
+
+      <div className="grid gap-6 lg:grid-cols-3">
+        <div className="space-y-3 lg:col-span-2">
+          <h2 className="text-xl font-semibold">Announcements</h2>
+          {announcements.length === 0 ? (
+            <p className="text-slate-600">No announcements yet.</p>
+          ) : (
+            <ul className="space-y-3">
+              {announcements.map((item) => (
+                <li key={item.id} className="rounded-xl border border-slate-200 bg-white p-4">
+                  <h3 className="font-semibold">{item.title}</h3>
+                  <p className="mt-1 text-sm text-slate-700">{item.body}</p>
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+        <aside className="rounded-xl border border-emerald-200 bg-emerald-50 p-5">
+          <h2 className="text-xl font-semibold text-emerald-950">AI study tips</h2>
+          <p className="mt-3 text-sm leading-relaxed text-emerald-900">{STUDY_TIPS[tipIndex]}</p>
+          <p className="mt-4 text-xs text-emerald-800">
+            Tip {tipIndex + 1} of {STUDY_TIPS.length} · static rotating list, not model-generated
+          </p>
+        </aside>
+      </div>
+
+      <div className="space-y-3">
+        <div className="flex items-center justify-between gap-3">
+          <h2 className="text-xl font-semibold">Featured courses</h2>
+          <Link to="/courses" className="text-sm font-medium underline">
+            View all
+          </Link>
+        </div>
+        <div className="grid gap-3 sm:grid-cols-2">
+          {featured.map((course) => (
+            <CourseCard key={course.id} course={course} />
+          ))}
+        </div>
+      </div>
+
+      <div className="space-y-3">
+        <h2 className="text-xl font-semibold">Top teachers</h2>
+        <div className="grid gap-3 md:grid-cols-3">
+          {teachers.map((teacher) => (
+            <TeacherCard key={teacher.id} teacher={teacher} />
+          ))}
+        </div>
+      </div>
+    </section>
   );
 }
