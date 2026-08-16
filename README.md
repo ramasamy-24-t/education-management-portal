@@ -60,6 +60,12 @@ npm run dev
 | Teacher | `priya.nair@edu.local` |
 | Student | `rohan.sharma@edu.local` |
 
+## Demo notes (judges)
+
+The live wow-moment is **My Progress → “Ask about your progress”**. Log in as `rohan.sharma@edu.local`, open My Progress, and ask something like “Why is my attendance flagged?” or “What should I study first?” The assistant only sees that student’s attendance, grades, exam analysis, weak subjects, and assignment AI feedback. Off-topic questions get a polite redirect.
+
+Then optionally show **Generate practice questions** on a weak subject, and **Refresh insights** on the admin dashboard.
+
 ---
 
 ## Feature Overview
@@ -80,7 +86,7 @@ npm run dev
 ### User Dashboards
 - **Student:** Profile, enrolled courses, assignments with submissions, attendance, grades, AI recommendations, progress overview
 - **Teacher:** Profile, owned courses and classes, links to academic management
-- **My Progress (student):** Performance metrics, weak subjects with generate-practice-questions, improvement tips, AI insights, at-risk trend
+- **My Progress (student):** Performance metrics, **Ask about your progress** chat, weak subjects with practice questions, improvement tips, AI insights, at-risk trend
 
 ### Admin Dashboard
 - **User Management:** List/create/deactivate students and teachers
@@ -175,6 +181,7 @@ Copy `backend/.env.example` to `backend/.env`:
 | GET | `/ai/me` | Student |
 | POST | `/ai/refresh` | Student |
 | POST | `/ai/practice-questions/{student_id}` | Student (self only) |
+| POST | `/ai/assistant/{student_id}` | Student (self only) |
 | GET | `/ai/monitoring` | Teacher, Admin |
 | POST | `/ai/monitoring/refresh` | Teacher, Admin |
 | GET | `/reports/me` | Student |
@@ -300,6 +307,7 @@ Copy `backend/.env.example` to `backend/.env`:
 - [x] Download / Print Report
 
 ### Innovation Add-ons
+- [x] **AI progress assistant (headline demo)** — My Progress chat: `POST /ai/assistant/{student_id}` with a free-text question. Context is **this student only** (attendance summary, grades, `exam_analysis.weak_topics`, stored weak subjects, assignment `ai_feedback`). Answers are 2–4 sentences. Off-topic questions are refused. Chat is **client-side only** (refresh clears it). Cap: 16 messages in the UI; last 6 turns sent as history. Rate limit: 12 questions / 5 minutes per student (in-memory, 429).
 - [x] At-risk **risk trend** — improving / worsening / stable (or “not enough data yet”) on My Progress and Admin AI Insights & Monitoring
 - [x] **Generate practice questions** — My Progress, per weak subject; 3–4 questions from the Model Router using that subject + `exam_analysis.weak_topics`. Questions are **not persisted**; each click (or retry) generates a fresh set.
 
@@ -330,6 +338,8 @@ Copy `backend/.env.example` to `backend/.env`:
 11. **Risk trend uses 3-day windows, not 2 weeks** — Seed attendance only covers 5 consecutive days (`today-1` through `today-5`) and seed exams sit 10 days back, so a 14-day vs prior-14-day split would always be empty. Trend compares **the last 3 calendar days** with **the 3 days before that**. Both windows need at least one attendance record; otherwise the UI shows “not enough data yet” and does not guess. Demo exam dates usually fall outside both windows, so the first demo trend is attendance-driven.
 
 12. **Practice questions are not saved** — `POST /ai/practice-questions/{student_id}` generates 3–4 questions on each click from the weak subject plus `exam_analysis.weak_topics`. Refreshing the page clears them.
+
+13. **Assistant chat is not saved** — Messages live in React state only. Rate limit is in-process memory (resets if uvicorn restarts).
 
 ---
 

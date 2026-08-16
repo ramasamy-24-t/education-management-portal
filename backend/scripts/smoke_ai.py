@@ -90,6 +90,21 @@ def main() -> None:
     )
     assert admin_denied.status_code == 403
 
+    chat = client.post(
+        f"/ai/assistant/{student_id}",
+        headers=auth(student),
+        json={"question": "What should I study first given my grades?"},
+    )
+    assert chat.status_code == 200, chat.text
+    assert isinstance(chat.json().get("answer"), str) and chat.json()["answer"]
+
+    other_chat = client.post(
+        "/ai/assistant/99999",
+        headers=auth(student),
+        json={"question": "How is the other student doing?"},
+    )
+    assert other_chat.status_code == 403
+
     print("smoke_ai: all checks passed")
 
 

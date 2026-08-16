@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { api } from "../api/client.js";
+import AssistantChat from "../components/AssistantChat.jsx";
 import RiskTrend from "../components/RiskTrend.jsx";
 import { useAuth } from "../hooks/useAuth.js";
 
@@ -70,6 +71,8 @@ export default function MyProgress() {
               />
             </dl>
           </div>
+
+          <AssistantChat studentId={user.id} token={token} />
 
           <div className="rounded-xl border border-amber-200 bg-amber-50 p-5">
             <h2 className="text-lg font-semibold text-amber-950">At-risk trend</h2>

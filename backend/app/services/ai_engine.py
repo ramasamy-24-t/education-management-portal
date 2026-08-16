@@ -568,6 +568,75 @@ def generate_practice_questions(db: Session, student: User, subject: str) -> dic
     }
 
 
+def _assistant_context(db: Session, student: User) -> str:
+    snap = student_snapshot(db, student)
+    texts = list_student_insight_texts(db, student, refresh=False)
+    topics = [
+        row.weak_topics.strip()
+        for row in db.query(ExamAnalysis).filter(ExamAnalysis.student_id == student.id).all()
+        if row.weak_topics and row.weak_topics.strip()
+    ]
+    from app.services.assignments import my_submissions
+
+    feedback = [
+        f"{row.assignment_title}: {row.ai_feedback}"
+        for row in my_submissions(db, student)
+        if row.ai_feedback
+    ]
+    return (
+        f"Name: {snap['name']}\n"
+        f"Attendance: {snap['attendance_percent']}% ({'; '.join(snap['attendance_lines']) or 'none'})\n"
+        f"Exam average: {snap['exam_average']}%\n"
+        f"Grades: {snap['grade_lines'] or ['none']}\n"
+        f"Weak subjects: {texts.get('weak_subjects') or ['none']}\n"
+        f"Exam weak topics: {topics or ['none']}\n"
+        f"Assignment AI feedback: {feedback or ['none']}\n"
+        f"Study tips: {texts.get('improvement_tips') or ['none']}"
+    )
+
+
+def answer_assistant(
+    db: Session,
+    student: User,
+    question: str,
+    history: list[dict] | None = None,
+) -> dict:
+    """Short Q&A over this student's records only. Not persisted."""
+    cleaned = (question or "").strip()
+    if not cleaned:
+        return {"answer": "Ask a question about your courses, attendance, or grades.", "source": "error"}
+
+    history_lines = []
+    for turn in (history or [])[-6]:
+        role = str(turn.get("role") or "")
+        content = str(turn.get("content") or "").strip()
+        if role in ("user", "assistant") and content:
+            history_lines.append(f"{role}: {content[:400]}")
+
+    prompt = (
+        "You are a brief academic assistant for ONE student. Answer in 2-4 sentences. "
+        "Use only the student context. Never discuss other students or invent records.\n"
+        "If the question is unrelated to this student's academics (attendance, grades, "
+        "assignments, exams, weak subjects, study plan), politely refuse and ask them to "
+        "ask about their own schoolwork.\n\n"
+        f"Student context:\n{_assistant_context(db, student)}\n\n"
+    )
+    if history_lines:
+        prompt += "Recent chat:\n" + "\n".join(history_lines) + "\n\n"
+    prompt += f"Student question: {cleaned}"
+
+    text = ai_service.complete(prompt, max_output_tokens=220)
+    if text:
+        return {"answer": text, "source": "model"}
+    return {
+        "answer": (
+            "I couldn't reach the study assistant just now. Try again, or ask about your "
+            "attendance, grades, or weak subjects on this page."
+        ),
+        "source": "fallback",
+    }
+
+
 def _unique(items: list[str]) -> list[str]:
     seen: set[str] = set()
     result: list[str] = []

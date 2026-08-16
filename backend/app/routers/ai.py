@@ -1,3 +1,6 @@
+from collections import defaultdict, deque
+from time import time
+
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
@@ -11,9 +14,34 @@ from app.services.academic_access import assert_can_manage_class
 
 router = APIRouter(prefix="/ai", tags=["ai"])
 
+_ASSISTANT_HITS: dict[int, deque[float]] = defaultdict(deque)
+_ASSISTANT_LIMIT = 12
+_ASSISTANT_WINDOW_SECONDS = 300
+
 
 class PracticeQuestionsRequest(BaseModel):
     subject: str = Field(min_length=1, max_length=300)
+
+
+class AssistantTurn(BaseModel):
+    role: str = Field(max_length=16)
+    content: str = Field(max_length=800)
+
+
+class AssistantRequest(BaseModel):
+    question: str = Field(min_length=1, max_length=500)
+    history: list[AssistantTurn] = Field(default_factory=list, max_length=8)
+
+
+def _assistant_rate_limited(student_id: int) -> bool:
+    now = time()
+    hits = _ASSISTANT_HITS[student_id]
+    while hits and now - hits[0] > _ASSISTANT_WINDOW_SECONDS:
+        hits.popleft()
+    if len(hits) >= _ASSISTANT_LIMIT:
+        return True
+    hits.append(now)
+    return False
 
 
 @router.get("/status")
@@ -71,4 +99,31 @@ def practice_questions(
             "questions": [],
             "source": "error",
             "detail": "Could not generate questions. Try again.",
+        }
+
+
+@router.post("/assistant/{student_id}")
+def assistant(
+    student_id: int,
+    payload: AssistantRequest,
+    db: Session = Depends(get_db),
+    user: User = Depends(require_roles(UserRole.student)),
+):
+    if user.id != student_id:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="You can only ask the assistant about your own progress",
+        )
+    if _assistant_rate_limited(user.id):
+        raise HTTPException(
+            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+            detail="Too many questions in a short time. Wait a few minutes and try again.",
+        )
+    try:
+        history = [{"role": turn.role, "content": turn.content} for turn in payload.history]
+        return ai_engine.answer_assistant(db, user, payload.question, history)
+    except Exception:
+        return {
+            "answer": "The assistant hit an error. Try a shorter question about your grades or attendance.",
+            "source": "error",
         }
